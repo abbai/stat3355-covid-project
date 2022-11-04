@@ -21,8 +21,8 @@ mortality_rate_df$ratio <- mortality_rate_df$deaths / mortality_rate_df$cases
 mortality_rate_df$ratio <- as.vector(mortality_rate_df$ratio$X10.15.22)
 
 # RACE
-race <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/race_data.csv",
-                 fill = TRUE)
+race <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/race.csv", 
+                  fill = TRUE)
 
 # EMPLOYMENT
 employment <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/laucnty21 (1).csv",
@@ -42,6 +42,13 @@ pov <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/poverty_d
 pov <- row_to_names(pov, 4, remove_rows_above = TRUE)
 pov <- clean_names(pov)
 pov <- pov[-1,]
+
+# EDUCATION
+edu <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/Education.csv",
+                fill = TRUE)
+edu <- row_to_names(edu, 4, remove_rows_above = TRUE)
+edu <- clean_names(edu)
+
 
 ### CLEANING ... ####
 
@@ -87,9 +94,78 @@ employment <- select(employment, code, percent)
 employment <- rename(employment, FIPS = code)
 employment <- rename(employment, unemp_percent = percent)
 
-# JOIN MAIN DATA FRAME INFO
-test_frame <- inner_join(mortality_rate_df, pov)
-maindf <- inner_join(test_frame, employment)
+# RACE 
+race <- race[race$YEAR == 12, ]
+race <- select(race, SUMLEV, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
+               WA_MALE, WA_FEMALE,
+               BA_MALE, BA_FEMALE,
+               IA_MALE, IA_FEMALE,
+               AA_MALE, AA_FEMALE,
+               NA_MALE, NA_FEMALE,
+               H_MALE, H_FEMALE)
+race$White <- race$WA_MALE + race$WA_FEMALE
+race$Black <- race$BA_MALE + race$BA_FEMALE
+race$Native <- race$IA_MALE + race$IA_FEMALE
+race$Asian <- race$AA_MALE + race$AA_FEMALE
+race$Hawaiian <- race$NA_MALE + race$NA_FEMALE
+race$Hispanic <- race$H_MALE + race$H_FEMALE
+race <- select(race, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
+               White,
+               Black,
+               Native,
+               Asian,
+               Hawaiian,
+               Hispanic)
+
+race$White_perc <- race$White / race$TOT_POP
+race$Black_perc <- race$Black / race$TOT_POP
+race$Native_perc <- race$Native / race$TOT_POP
+race$Asian_perc <- race$Asian / race$TOT_POP
+race$Hawaiian_perc <- race$Hawaiian / race$TOT_POP
+race$Hispanic_perc <- race$Hispanic / race$TOT_POP
+race <- select(race, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
+               White_perc,
+               Black_perc,
+               Native_perc,
+               Asian_perc,
+               Hawaiian_perc,
+               Hispanic_perc)
+
+race$COUNTY <- str_pad(race$COUNTY, width = 3, pad = "0")
+race$FIPS <- paste(as.character(race$STATE), race$COUNTY)
+race$FIPS <- gsub(" ", "", race$FIPS)
+race <- select(race, AGEGRP, TOT_POP,
+               White_perc,
+               Black_perc,
+               Native_perc,
+               Asian_perc,
+               Hawaiian_perc,
+               Hispanic_perc, FIPS)
+race <- race[race$AGEGRP == 0, ]
+race <- select(race, FIPS, TOT_POP,
+               White_perc,
+               Black_perc,
+               Native_perc,
+               Asian_perc,
+               Hawaiian_perc,
+               Hispanic_perc)
+
+# EDUCATION
+edu <- edu[-1,]
+edu$FIPS <- sub("^0+", "", edu$fips_code) 
+edu <- select(edu, FIPS, percent_of_adults_with_less_than_a_high_school_diploma_2015_19,
+              percent_of_adults_with_a_high_school_diploma_only_2015_19,
+              percent_of_adults_with_a_bachelors_degree_or_higher_2015_19)
+edu <- rename(edu, no_hs_diploma = percent_of_adults_with_less_than_a_high_school_diploma_2015_19,
+              hs_diploma = percent_of_adults_with_a_high_school_diploma_only_2015_19,
+              bachelors = percent_of_adults_with_a_bachelors_degree_or_higher_2015_19)
+edu$bachelors <- as.integer(edu$bachelors)
+
+# JOIN MAIN DATA FRAME 
+maindf <- inner_join(mortality_rate_df, pov)
+maindf <- inner_join(maindf, employment)
+maindf <- inner_join(maindf, race)
+maindf <- inner_join(maindf, edu)
 maindf$poverty_percent_all_ages <- as.integer(maindf$poverty_percent_all_ages)
 
 # POVERTY QUARTILES
@@ -211,3 +287,42 @@ ggplot(data = maindf) +
            position = "stack",
            nbins = 5,
            binwidth = 1)
+
+# RACE GRAPHS ?
+
+#Education Data
+
+ggplot(data = maindf) +
+  geom_point(mapping = aes(x = no_hs_diploma, y = ratio))
+
+#completed high school
+ggplot(data = maindf) +
+  geom_point(mapping = aes(x = hs_diploma, y = ratio))
+
+
+#Bachelor's Degree
+ggplot(data = maindf) +
+  geom_point(mapping = aes(x = bachelors, y = ratio))
+
+#split ratio + bachelors into quartiles
+maindf$bachelors_quartile <- as.factor(ifelse(maindf$bachelors <= 15, '1',
+                                          ifelse(maindf$ratio <= 19, '2', 
+                                                 ifelse(maindf$ratio <= 26, '3', 
+                                                        ifelse(maindf$ratio <= 77, '4')))))
+maindf$ratio_quartile <- as.factor(ifelse(maindf$ratio <= 0.010225385, '1',
+                                              ifelse(maindf$ratio <= 0.013472447, '2', 
+                                                     ifelse(maindf$ratio <= 0.017375413, '3', 
+                                                            ifelse(maindf$ratio <= 0.05, '4'))))) 
+ggplot(data = maindf) +
+  geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = bachelors_quartile))
+
+ggplot(data = maindf) +
+  geom_density(mapping = aes(x = ratio, color = bachelors_quartile))
+ggplot(data = maindf) +
+  geom_density(mapping = aes(x = bachelors, color = ratio_quartile))
+
+ggplot(data = maindf) +
+  geom_histogram(mapping = aes(x = ratio, fill = bachelors_quartile))
+ggplot(data = maindf) +
+  geom_histogram(mapping = aes(x = bachelors, fill = ratio_quartile))
+#I don't think my brain can process this graph ^^ but, I just thought I would leave it in
