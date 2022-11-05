@@ -27,9 +27,6 @@ race <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/race.csv
 # EMPLOYMENT
 employment <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/laucnty21 (1).csv",
                  fill = TRUE)
-employment <- row_to_names(employment, 4, remove_rows_above = TRUE)
-employment <- clean_names(employment)
-employment <- employment[-1,]
 
 # UID reference
 uidref <- read.table("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/uidlookup.txt",
@@ -39,20 +36,17 @@ uidref <- uidref[-c(2:177),]
 
 # POVERTY 
 pov <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/poverty_data.csv", header = FALSE)
-pov <- row_to_names(pov, 4, remove_rows_above = TRUE)
-pov <- clean_names(pov)
-pov <- pov[-1,]
 
 # EDUCATION
 edu <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/Education.csv",
                 fill = TRUE)
-edu <- row_to_names(edu, 4, remove_rows_above = TRUE)
-edu <- clean_names(edu)
 
 
+#####################
 ### CLEANING ... ####
+#####################
 
-# MORTALITY RATE DF
+# MORTALITY RATE 
 # .05 is cdc cutoff for mortality rates !!! anything above it is inaccurate
 mortality_rate_df <- mortality_rate_df[which(mortality_rate_df$ratio < .05),]
 # do not include entries with 0 deaths; throws off our stats, likely inaccurate
@@ -67,6 +61,10 @@ mortality_rate_df <- select(mortality_rate_df, FIPS, ratio)
 mortality_rate_df$FIPS <- as.character(mortality_rate_df$FIPS)
 
 # POVERTY
+# clean row names
+pov <- row_to_names(pov, 4, remove_rows_above = TRUE)
+pov <- clean_names(pov)
+pov <- pov[-1,]
 # keep only counties (not states in general)
 povtemp <- pov$name == state.abb[match(pov$name, state.name)]
 pov <- pov[which(is.na(povtemp)),]
@@ -85,6 +83,10 @@ pov <- select(pov, county_fips_code, poverty_percent_all_ages, median_household_
 pov <- rename(pov, FIPS = county_fips_code)
 
 # EMPLOYMENT
+# clean row names
+employment <- row_to_names(employment, 4, remove_rows_above = TRUE)
+employment <- clean_names(employment)
+employment <- employment[-1,]
 # fix fips to include state code
 employment$code <- paste(employment$code_2, employment$code_3)
 employment$code <- gsub(" ", "", employment$code)
@@ -95,6 +97,7 @@ employment <- rename(employment, FIPS = code)
 employment <- rename(employment, unemp_percent = percent)
 
 # RACE 
+# filter out useful info
 race <- race[race$YEAR == 12, ]
 race <- select(race, SUMLEV, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
                WA_MALE, WA_FEMALE,
@@ -103,12 +106,14 @@ race <- select(race, SUMLEV, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
                AA_MALE, AA_FEMALE,
                NA_MALE, NA_FEMALE,
                H_MALE, H_FEMALE)
+# create total race population value
 race$White <- race$WA_MALE + race$WA_FEMALE
 race$Black <- race$BA_MALE + race$BA_FEMALE
 race$Native <- race$IA_MALE + race$IA_FEMALE
 race$Asian <- race$AA_MALE + race$AA_FEMALE
 race$Hawaiian <- race$NA_MALE + race$NA_FEMALE
 race$Hispanic <- race$H_MALE + race$H_FEMALE
+# keep the total race populations; get rid of populations by gender
 race <- select(race, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
                White,
                Black,
@@ -116,7 +121,7 @@ race <- select(race, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
                Asian,
                Hawaiian,
                Hispanic)
-
+# create total race percentages
 race$White_perc <- race$White / race$TOT_POP
 race$Black_perc <- race$Black / race$TOT_POP
 race$Native_perc <- race$Native / race$TOT_POP
@@ -130,7 +135,7 @@ race <- select(race, STATE, COUNTY, CTYNAME, AGEGRP, TOT_POP,
                Asian_perc,
                Hawaiian_perc,
                Hispanic_perc)
-
+# create fips
 race$COUNTY <- str_pad(race$COUNTY, width = 3, pad = "0")
 race$FIPS <- paste(as.character(race$STATE), race$COUNTY)
 race$FIPS <- gsub(" ", "", race$FIPS)
@@ -141,6 +146,8 @@ race <- select(race, AGEGRP, TOT_POP,
                Asian_perc,
                Hawaiian_perc,
                Hispanic_perc, FIPS)
+# only keep the TOTAL age groups
+# should also consider other age groups later 
 race <- race[race$AGEGRP == 0, ]
 race <- select(race, FIPS, TOT_POP,
                White_perc,
@@ -151,8 +158,13 @@ race <- select(race, FIPS, TOT_POP,
                Hispanic_perc)
 
 # EDUCATION
+# clean row names
+edu <- row_to_names(edu, 4, remove_rows_above = TRUE)
+edu <- clean_names(edu)
 edu <- edu[-1,]
+# add fips 
 edu$FIPS <- sub("^0+", "", edu$fips_code) 
+# filter out relevant info and rename it
 edu <- select(edu, FIPS, percent_of_adults_with_less_than_a_high_school_diploma_2015_19,
               percent_of_adults_with_a_high_school_diploma_only_2015_19,
               percent_of_adults_with_a_bachelors_degree_or_higher_2015_19)
@@ -168,6 +180,12 @@ maindf <- inner_join(maindf, race)
 maindf <- inner_join(maindf, edu)
 maindf$poverty_percent_all_ages <- as.integer(maindf$poverty_percent_all_ages)
 
+###################
+### GRAPHS #######
+##################
+
+### QUARTILES ###
+
 # POVERTY QUARTILES
 maindf$poverty_percent_all_ages <- as.numeric(as.character(maindf$poverty_percent_all_ages))
 # quantile(maindf$poverty_percent_all_ages)
@@ -175,21 +193,6 @@ maindf$pov_quartile <- as.factor(ifelse(maindf$poverty_percent_all_ages <= 9.9, 
                                  ifelse(maindf$poverty_percent_all_ages <= 12.8, '2', 
                                         ifelse(maindf$poverty_percent_all_ages <= 16.6, '3', 
                                                ifelse(maindf$poverty_percent_all_ages <= 43.9, '4')))))
-
-# POVERTY GRAPHS
-# overall poverty distribution w/in US
-ggplot(data = maindf) +
-  geom_density(mapping = aes(x = poverty_percent_all_ages))
-# separate by quartiles 
-ggplot(data = maindf) +
-  geom_density(mapping = aes(x = poverty_percent_all_ages, color = pov_quartile))
-# poverty percent and mortality ratio
-ggplot(data = maindf) +
-  geom_point(mapping = aes(x = poverty_percent_all_ages, y = ratio, color = pov_quartile))
-# density of mortality rate by quartile (quartile 1 means richer area)
-ggplot(data = maindf) + 
-  geom_density(mapping = aes(x = ratio, color = pov_quartile))
-
 # subset poverty data to find mean of each quartile 
 maindf1 <- maindf[maindf$pov_quartile == "1", ]
 maindf1_mean <- mean(maindf1$ratio)
@@ -210,14 +213,9 @@ maindf4_mean <- mean(maindf4$ratio)
 maindf$median_household_income <- as.numeric(gsub(",", "", maindf$median_household_income))
 quantile(maindf$median_household_income, na.rm = TRUE)
 maindf$medhh_quartile <- as.factor(ifelse(maindf$median_household_income <= 47722, '1', 
-                                              ifelse(maindf$median_household_income <= 55055, '2', 
-                                                     ifelse(maindf$median_household_income <= 63963, '3',
-                                                            ifelse(maindf$median_household_income <= 160305, '4')))))
-# MHI GRAPHS
-#plot mortality rate by med hh income quartiles
-ggplot(data = maindf) + 
-  geom_density(mapping = aes(x = ratio, color = medhh_quartile))
-
+                                          ifelse(maindf$median_household_income <= 55055, '2', 
+                                                 ifelse(maindf$median_household_income <= 63963, '3',
+                                                        ifelse(maindf$median_household_income <= 160305, '4')))))
 #find avg mortality rate among different quartiles 
 mean_medhh1 <- mean(maindf$ratio[maindf$medhh_quartile == '1'])
 # mean = 0.01789561
@@ -228,6 +226,96 @@ mean_medhh3 <- mean(maindf$ratio[maindf$medhh_quartile == '3'])
 mean_medhh4 <- mean(maindf$ratio[maindf$medhh_quartile == '4'])
 # mean = 0.01032676
 # notice: average mortality ratio decreases as income quartile increases
+
+# UNEMPLOYMENT QUARTILES
+maindf$unemp_percent <- as.numeric(as.character(maindf$unemp_percent))
+quantile(maindf$unemp_percent)
+maindf$unemp_quartile <- as.factor(ifelse(maindf$unemp_percent <= 3.5, '1', 
+                                          ifelse(maindf$unemp_percent <= 4.4, '2', 
+                                                 ifelse(maindf$unemp_percent <= 5.5, '3', 
+                                                        ifelse(maindf$unemp_percent <= 19.9, '4')))))
+#find avg mortality rate among different unemployment rate groups 
+mean_unemp1 <- mean(maindf$ratio[maindf$unemp_quartile == '1'])
+# mean = 0.01354782
+mean_unemp2 <- mean(maindf$ratio[maindf$unemp_quartile == '2'])
+# mean = 0.01421827
+mean_unemp3 <- mean(maindf$ratio[maindf$unemp_quartile == '3'])
+# mean = 0.01437989
+mean_unemp4 <- mean(maindf$ratio[maindf$unemp_quartile == '4'])
+# mean = 0.01519225
+
+# EDUCATION QUARTILES
+maindf$bachelors_quartile <- as.factor(ifelse(maindf$bachelors <= 15, '1',
+                                              ifelse(maindf$bachelors <= 19, '2', 
+                                                     ifelse(maindf$bachelors <= 26, '3', 
+                                                            ifelse(maindf$bachelors <= 77, '4')))))
+#find avg mortality rate among different education groups 
+mean_bc1 <- mean(maindf$ratio[maindf$bachelors_quartile == '1'])
+# mean = 0.01698056
+mean_bc2 <- mean(maindf$ratio[maindf$bachelors_quartile == '2'])
+# mean = 0.01561655
+mean_bc3 <- mean(maindf$ratio[maindf$bachelors_quartile == '3'])
+# mean = 0.01391756
+mean_bc4 <- mean(maindf$ratio[maindf$bachelors_quartile == '4'])
+# mean = 0.01004702
+
+# MORTALITY RATIO QUARTILES
+maindf$ratio_quartile <- as.factor(ifelse(maindf$ratio <= 0.010225385, '1',
+                                          ifelse(maindf$ratio <= 0.013472447, '2', 
+                                                 ifelse(maindf$ratio <= 0.017375413, '3', 
+                                                        ifelse(maindf$ratio <= 0.05, '4')))))
+
+# WHITE QUARTILES
+maindf$white_quartile <- as.factor(ifelse(maindf$White_perc <= 0.79436296, '1',
+                                          ifelse(maindf$White_perc <= 0.91197499, '2', 
+                                                 ifelse(maindf$White_perc <= 0.95398971, '3', 
+                                                        ifelse(maindf$White_perc <= 1, '4')))))
+mean_white1 <- mean(maindf$ratio[maindf$white_quartile == '1'])
+# mean = 0.01455018
+mean_white2 <- mean(maindf$ratio[maindf$white_quartile == '2'])
+# mean = 0.01337807
+mean_white3 <- mean(maindf$ratio[maindf$white_quartile == '3'])
+# mean = 0.01429719
+mean_white4 <- mean(maindf$ratio[maindf$white_quartile == '4'])
+# mean = 0.01506888
+
+# BLACK QUARTILES
+maindf$black_quartile <- as.factor(ifelse(maindf$Black_perc <= 0.009089983, '1',
+                                          ifelse(maindf$Black_perc <= 0.026571664, '2', 
+                                                 ifelse(maindf$Black_perc <= 0.865932354, '3', 
+                                                        ifelse(maindf$Black_perc <= 1, '4')))))
+mean_black1 <- mean(maindf$ratio[maindf$black_quartile == '1'])
+# mean = 0.01497474
+mean_black2 <- mean(maindf$ratio[maindf$black_quartile == '2'])
+# mean = 0.01360205
+mean_black3 <- mean(maindf$ratio[maindf$black_quartile == '3'])
+# mean = 0.01435565
+mean_black4 <- mean(maindf$ratio[maindf$black_quartile == '4'])
+# mean = 0.01941748 SIGNFICANT JUMP !
+# NOTE: we should probably use quartiles based on location like per state for these
+# instead of overall cuz some states r VERY different from others and it throws it off
+
+### GRAPHS ###
+
+# POVERTY GRAPHS
+# overall poverty distribution w/in US
+ggplot(data = maindf) +
+  geom_density(mapping = aes(x = poverty_percent_all_ages))
+# separate by quartiles 
+ggplot(data = maindf) +
+  geom_density(mapping = aes(x = poverty_percent_all_ages, color = pov_quartile))
+# poverty percent and mortality ratio
+ggplot(data = maindf) +
+  geom_point(mapping = aes(x = poverty_percent_all_ages, y = ratio, color = pov_quartile))
+# density of mortality rate by quartile (quartile 1 means richer area)
+ggplot(data = maindf) + 
+  geom_density(mapping = aes(x = ratio, color = pov_quartile))
+
+# MHI GRAPHS
+#plot mortality rate by med hh income quartiles
+ggplot(data = maindf) + 
+  geom_density(mapping = aes(x = ratio, color = medhh_quartile))
+
 
 ggplot(data = maindf) +
   geom_point(mapping = aes(x = poverty_percent_all_ages, y = ratio, color = medhh_quartile))
@@ -240,26 +328,12 @@ ggplot(data = maindf) +
 ggplot(data = maindf) +
   geom_tile(mapping = aes(x = pov_quartile, y = medhh_quartile, fill = ratio))
 
-# UNEMPLOYMENT QUARTILES
-maindf$unemp_percent <- as.numeric(as.character(maindf$unemp_percent))
-quantile(maindf$unemp_percent)
-maindf$unemp_quartile <- as.factor(ifelse(maindf$unemp_percent <= 3.5, '1', 
-                                        ifelse(maindf$unemp_percent <= 4.4, '2', 
-                                               ifelse(maindf$unemp_percent <= 5.5, '3', 
-                                                      ifelse(maindf$unemp_percent <= 19.9, '4')))))
+
 # unemployment graphs
 ggplot(data = maindf) + 
   geom_density(mapping = aes(x = ratio, color = unemp_quartile))
 
-#find avg mortality rate among different unemployment rate groups 
-mean_unemp1 <- mean(maindf$ratio[maindf$unemp_quartile == '1'])
-# mean = 0.01354782
-mean_unemp2 <- mean(maindf$ratio[maindf$unemp_quartile == '2'])
-# mean = 0.01421827
-mean_unemp3 <- mean(maindf$ratio[maindf$unemp_quartile == '3'])
-# mean = 0.01437989
-mean_unemp4 <- mean(maindf$ratio[maindf$unemp_quartile == '4'])
-# mean = 0.01519225
+
 # NOTICE mean mortality increases with unemployment rate but not by much
 fact_rat <- as.factor(ifelse(maindf$ratio <= 0.010215378, '1', 
                                           ifelse(maindf$ratio <= 0.013470173, '2', 
@@ -290,7 +364,7 @@ ggplot(data = maindf) +
 
 # RACE GRAPHS ?
 
-#Education Data
+# EDUCATION GRAPHS
 
 ggplot(data = maindf) +
   geom_point(mapping = aes(x = no_hs_diploma, y = ratio))
@@ -303,16 +377,7 @@ ggplot(data = maindf) +
 #Bachelor's Degree
 ggplot(data = maindf) +
   geom_point(mapping = aes(x = bachelors, y = ratio))
-
-#split ratio + bachelors into quartiles
-maindf$bachelors_quartile <- as.factor(ifelse(maindf$bachelors <= 15, '1',
-                                          ifelse(maindf$ratio <= 19, '2', 
-                                                 ifelse(maindf$ratio <= 26, '3', 
-                                                        ifelse(maindf$ratio <= 77, '4')))))
-maindf$ratio_quartile <- as.factor(ifelse(maindf$ratio <= 0.010225385, '1',
-                                              ifelse(maindf$ratio <= 0.013472447, '2', 
-                                                     ifelse(maindf$ratio <= 0.017375413, '3', 
-                                                            ifelse(maindf$ratio <= 0.05, '4'))))) 
+ 
 ggplot(data = maindf) +
   geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = bachelors_quartile))
 
@@ -325,4 +390,17 @@ ggplot(data = maindf) +
   geom_histogram(mapping = aes(x = ratio, fill = bachelors_quartile))
 ggplot(data = maindf) +
   geom_histogram(mapping = aes(x = bachelors, fill = ratio_quartile))
-#I don't think my brain can process this graph ^^ but, I just thought I would leave it in
+
+temp <- filter(maindf,substr(FIPS,1,2)=="20")
+ggplot(data = temp) +
+  geom_bar(mapping = aes(x = reorder(factor(FIPS), ratio), y = ratio, fill = white_quartile), stat = "identity") +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+ggplot(data = temp) +
+  geom_bar(mapping = aes(x = reorder(factor(FIPS), ratio), y = ratio, fill = black_quartile), stat = "identity") +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+ggplot(data = maindf) +
+  geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = white_quartile))
+ggplot(data = maindf) +
+  geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = black_quartile))
