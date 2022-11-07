@@ -264,10 +264,7 @@ BD_four_med <- median(edu_pov_mr$ratio[edu_pov_mr$BD_quartile == "4"])
 #attempt to find mortality rate for each day
 # get rid of unnecessary columns from deaths and cases
 deaths <- deaths[, -c(1:4, 6, 8:54)]
-cases <- cases[, -c(1:4, 6, 8:53)]
-#join data frames 
-mr_df <- left_join(cases,deaths, by = c("FIPS", "Province_State"))
-mr_df <- na.omit(mr_df)                 
+cases <- cases[, -c(1:4, 6, 8:53)]             
 
 #column 960: start of deaths
 #column 3: start of cases
