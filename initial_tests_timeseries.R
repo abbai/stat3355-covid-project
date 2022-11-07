@@ -13,6 +13,10 @@ cases <- read.table("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/us_ti
 deaths <- read.table("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/us_timeseries_deaths.txt", 
                      quote = "\"", header = TRUE, sep = ",", fill = TRUE)
 
+# ALL COUNTRIES LOL merge with ours we just want the lat/long data
+countries <- read.table("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/country_daily.txt", 
+                     quote = "\"", header = TRUE, sep = ",", fill = TRUE)
+
 # MORTALITY RATE DF
 mortality_rate_df <- cases[c(1:11, length(cases))]
 mortality_rate_df$cases <- cases[c(length(cases))]
@@ -59,6 +63,13 @@ mortality_rate_df <- filter(mortality_rate_df, is.na(Admin2) == FALSE)
 # Keep only fips, mortality ratio columns
 mortality_rate_df <- select(mortality_rate_df, FIPS, ratio)
 mortality_rate_df$FIPS <- as.character(mortality_rate_df$FIPS)
+
+# LAT AND LONG
+countries <- countries[676:3954,]
+latlong <- select(countries, FIPS, Lat, Long_)
+latlong <- rename(countries, long = Long_)
+latlong$FIPS <- as.character(latlong$FIPS)
+latlong <- select(latlong, FIPS, Lat, long)
 
 # POVERTY
 # clean row names
@@ -178,6 +189,7 @@ maindf <- inner_join(mortality_rate_df, pov)
 maindf <- inner_join(maindf, employment)
 maindf <- inner_join(maindf, race)
 maindf <- inner_join(maindf, edu)
+maindf <- inner_join(maindf, latlong)
 maindf$poverty_percent_all_ages <- as.integer(maindf$poverty_percent_all_ages)
 
 ###################
@@ -448,6 +460,8 @@ BD_three_med <- median(maindf$ratio[maindf$bachelors_quartile == "3"])
 BD_four_med <- median(maindf$ratio[maindf$bachelors_quartile == "4"])
 # 0.009726302
 
+### TREND IN MORTALITY RATE GRAPHS ###
+
 #attempt to find mortality rate for each day
 # get rid of unnecessary columns from deaths and cases
 deaths <- deaths[, -c(1:4, 6, 8:54)]
@@ -473,13 +487,13 @@ names(mr_trend)[names(mr_trend) == "mr_df.FIPS"] <- "FIPS"
 mr_trend <- mr_trend[, -c(2)]
 #change FIPS to character for mr_trend 
 mr_trend$FIPS <- as.character(mr_trend$FIPS)
-mr_trend_pov <- left_join(pov, mr_trend, by = "FIPS")
-mr_trend_pov <- na.omit(mr_trend_pov)
+mr_trend_bac <- left_join(pov, mr_trend, by = "FIPS")
+mr_trend_bac <- na.omit(mr_trend_bac)
 temp2 <- select(maindf, FIPS, bachelors_quartile)
-mr_trend_pov <- left_join(temp2, mr_trend_pov, by = "FIPS")
+mr_trend_bac <- left_join(temp2, mr_trend_bac, by = "FIPS")
 
 #aggregate df to find avg mortality rate each day w/in the quartiles
-mr_trend_agg <- aggregate(mr_trend_pov, by = list(mr_trend_pov$bachelors_quartile), FUN = mean)
+mr_trend_agg <- aggregate(mr_trend_bac, by = list(mr_trend_bac$bachelors_quartile), FUN = mean)
 is.na(mr_trend_agg) <- sapply(mr_trend_agg, is.infinite)
 mr_trend_agg[is.na(mr_trend_agg)] <- 0
 #want x axis to be day and y axis to be average and color by quartile
@@ -508,4 +522,95 @@ ggplot(data = bind) +
                                 "3" = 3, "4" = 4)) +
   theme(legend.title = element_text(size = 10), 
         legend.text = element_text(size = 7)) +
-  labs(x = "Date", y = "Average Mortality Rate", main = "Mortality Rate By Quartile")
+  labs(x = "Date", y = "Average Mortality Rate", main = "Mortality Rate By Bachelors Quartile")
+
+### MAPS ??????? ###
+set.seed(1)    # for reproducible example
+map.county <- map_data('county')
+counties   <- unique(map.county[,5:6])
+pov_map <- data.frame(state_names=counties$region, 
+                          county_names=counties$subregion, 
+                          pov_percentage = runif(nrow(counties), min=0, max=100))
+
+map.county <- data.table(map_data('county'))
+setkey(map.county,region,subregion)
+pov_map <- data.table(pov_map)
+setkey(pov_map,state_names,county_names)
+map.df <- map.county[pov_map]
+
+high_pov <- filter(maindf, as.integer(pov_quartile) >= 3)
+high_pov <- select(high_pov, FIPS, Lat, long)
+high_pov <- filter(high_pov, str_starts(high_pov$FIPS, '15') != TRUE)
+high_pov <- filter(high_pov, str_starts(high_pov$FIPS, '02') != TRUE)
+high_pov$Lat <- unlist(high_pov$Lat)
+high_pov$long <- unlist(high_pov$long)
+
+high_ratio <- filter(maindf, as.integer(ratio_quartile) >= 3)
+high_ratio <- select(high_ratio, FIPS, Lat, long, ratio_quartile)
+high_ratio <- filter(high_ratio, str_starts(high_ratio$FIPS, '15') != TRUE)
+high_ratio <- filter(high_ratio, str_starts(high_ratio$FIPS, '02') != TRUE)
+high_ratio$Lat <- unlist(high_ratio$Lat)
+high_ratio$long <- unlist(high_ratio$long)
+
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "red") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) 
+
+low_pov <- filter(maindf, as.integer(pov_quartile) < 3)
+low_pov <- select(low_pov, FIPS, Lat, long)
+low_pov <- filter(low_pov, str_starts(low_pov$FIPS, '15') != TRUE)
+low_pov <- filter(low_pov, str_starts(low_pov$FIPS, '02') != TRUE)
+low_pov$Lat <- unlist(low_pov$Lat)
+low_pov$long <- unlist(low_pov$long)
+
+low_ratio <- filter(maindf, as.integer(ratio_quartile) < 3)
+low_ratio <- select(low_ratio, FIPS, Lat, long, ratio_quartile)
+low_ratio <- filter(low_ratio, str_starts(low_ratio$FIPS, '15') != TRUE)
+low_ratio <- filter(low_ratio, str_starts(low_ratio$FIPS, '02') != TRUE)
+low_ratio$Lat <- unlist(low_ratio$Lat)
+low_ratio$long <- unlist(low_ratio$long)
+
+# LOW POVERTY, HIGH MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = low_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "red") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) 
+
+# LOW POVERTY, LOW MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = low_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = low_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "green") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) 
+
+# HIGH POVERTY, HIGH MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "red") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) 
+
+# HIGH POVERTY, LOW MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = low_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "green") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) 
