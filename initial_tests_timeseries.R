@@ -307,12 +307,14 @@ ggplot(data = maindf) +
 # poverty percent and mortality ratio
 ggplot(data = maindf) +
   geom_point(mapping = aes(x = poverty_percent_all_ages, y = ratio, color = pov_quartile))
+# GOOD - how to interpret?
 # density of mortality rate by quartile (quartile 1 means richer area)
 ggplot(data = maindf) + 
   geom_density(mapping = aes(x = ratio, color = pov_quartile))
 
 # MHI GRAPHS
 #plot mortality rate by med hh income quartiles
+# DECENT
 ggplot(data = maindf) + 
   geom_density(mapping = aes(x = ratio, color = medhh_quartile))
 
@@ -320,16 +322,18 @@ ggplot(data = maindf) +
 ggplot(data = maindf) +
   geom_point(mapping = aes(x = poverty_percent_all_ages, y = ratio, color = medhh_quartile))
 
+# GOOD !!! I LIKE THIS
 ggplot(data = maindf) +
   geom_bar(mapping = aes(x = poverty_percent_all_ages, y = ratio, fill = medhh_quartile), 
            stat = "identity",
            position = "stack")
-
+# ??? What is going on here
 ggplot(data = maindf) +
   geom_tile(mapping = aes(x = pov_quartile, y = medhh_quartile, fill = ratio))
 
 
-# unemployment graphs
+# UNEMPLOYMENT
+# nothing learned from this ?
 ggplot(data = maindf) + 
   geom_density(mapping = aes(x = ratio, color = unemp_quartile))
 
@@ -339,23 +343,25 @@ fact_rat <- as.factor(ifelse(maindf$ratio <= 0.010215378, '1',
                                           ifelse(maindf$ratio <= 0.013470173, '2', 
                                                  ifelse(maindf$ratio <= .017370823, '3', 
                                                         ifelse(maindf$ratio <= 0.5, '4')))))
+# Ehhh it might be okay if we get rid of outliers?
 ggplot(data = maindf, aes(x = unemp_percent, y = poverty_percent_all_ages,
                           color = fact_rat, alpha = .5)) +
   geom_point() +
   geom_smooth(method = "lm")
 
+# I LIKE THIS
 ggplot(data = maindf) +
   geom_bar(mapping = aes(x = fact_rat, fill = pov_quartile),
            position = "stack",
            nbins = 5,
            binwidth = 1)
-
+# I LIKE THIS TOO
 ggplot(data = maindf) +
   geom_bar(mapping = aes(x = fact_rat, fill = medhh_quartile),
            position = "stack",
            nbins = 5,
            binwidth = 1)
-
+# AND THIS <3
 ggplot(data = maindf) +
   geom_bar(mapping = aes(x = fact_rat, fill = unemp_quartile),
            position = "stack",
@@ -365,29 +371,30 @@ ggplot(data = maindf) +
 # RACE GRAPHS ?
 
 # EDUCATION GRAPHS
-
+# eh?
 ggplot(data = maindf) +
   geom_point(mapping = aes(x = no_hs_diploma, y = ratio))
 
 #completed high school
+# this is nice
 ggplot(data = maindf) +
-  geom_point(mapping = aes(x = hs_diploma, y = ratio))
-
+  geom_point(mapping = aes(x = hs_diploma, y = ratio, color = pov_quartile), alpha = .5)
 
 #Bachelor's Degree
+# and this is nice too
 ggplot(data = maindf) +
-  geom_point(mapping = aes(x = bachelors, y = ratio))
- 
+  geom_point(mapping = aes(x = bachelors, y = ratio, color = pov_quartile), alpha = .5)
+# ehh
 ggplot(data = maindf) +
   geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = bachelors_quartile))
-
+# YES !
 ggplot(data = maindf) +
   geom_density(mapping = aes(x = ratio, color = bachelors_quartile))
 ggplot(data = maindf) +
   geom_density(mapping = aes(x = bachelors, color = ratio_quartile))
-
+# YESSS @ these two
 ggplot(data = maindf) +
-  geom_histogram(mapping = aes(x = ratio, fill = bachelors_quartile))
+  geom_histogram(mapping = aes(x = ratio, fill = bachelors_quartile)) 
 ggplot(data = maindf) +
   geom_histogram(mapping = aes(x = bachelors, fill = ratio_quartile))
 
@@ -404,3 +411,101 @@ ggplot(data = maindf) +
   geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = white_quartile))
 ggplot(data = maindf) +
   geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = black_quartile))
+
+ggplot(data = maindf, mapping = aes(x = poverty_percent_all_ages, y = ratio, color = bachelors_quartile)) +
+  geom_point(alpha = .5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_vline(xintercept = 9, color = "gray") +
+  geom_vline(xintercept = 12, color = "gray") +
+  geom_vline(xintercept = 16, color = "gray")
+
+ggplot(data = maindf, mapping = aes(x = poverty_percent_all_ages, y = ratio, color = bachelors_quartile)) +
+  geom_point(alpha = .5) +
+  facet_wrap(~ bachelors_quartile)
+
+ggplot(data = maindf, mapping = aes(x = poverty_percent_all_ages, y = ratio, color = medhh_quartile)) +
+  geom_point(alpha = .5) +
+  facet_wrap(~ medhh_quartile)
+
+ggplot(data = maindf, mapping = aes(x = median_household_income, y = ratio, color = white_quartile)) +
+  geom_point(alpha = .5) +
+  facet_wrap(~ white_quartile) +
+  geom_hline(yintercept = mean(maindf$ratio[maindf$white_quartile]))
+
+ggplot(data = maindf, mapping = aes(x = median_household_income, y = ratio, color = black_quartile)) +
+  geom_point(alpha = .5) +
+  facet_wrap(~ black_quartile) 
+
+### UPDATED CODE ##### 
+
+#median mortality rate among different quartiles 
+BD_one_med <- median(maindf$ratio[maindf$bachelors_quartile == "1"])
+# 0.01599247
+BD_two_med <- median(maindf$ratio[maindf$bachelors_quartile == "2"])
+# 0.01501877
+BD_three_med <- median(maindf$ratio[maindf$bachelors_quartile == "3"])
+# 0.01300179
+BD_four_med <- median(maindf$ratio[maindf$bachelors_quartile == "4"])
+# 0.009726302
+
+#attempt to find mortality rate for each day
+# get rid of unnecessary columns from deaths and cases
+deaths <- deaths[, -c(1:4, 6, 8:54)]
+cases <- cases[, -c(1:4, 6, 8:53)]
+
+#column 960: start of deaths
+#column 3: start of cases
+deaths <- na.omit(deaths)
+cases <- na.omit(cases)
+mr_trend <- data.frame(mr_df$FIPS, mr_df$Province_State)
+for(i in 3:ncol(cases)){
+  x <- deaths[[i]]
+  y <- cases[[i]]
+  new <- x/y
+  mr_trend[, ncol(mr_trend) + 1] <- new
+  colnames(mr_trend)[ncol(mr_trend)] <- paste0("new", i)
+}
+
+mr_trend[is.na(mr_trend)] <- 0
+
+names(mr_trend)[names(mr_trend) == "mr_df.FIPS"] <- "FIPS"
+#remove Province_State 
+mr_trend <- mr_trend[, -c(2)]
+#change FIPS to character for mr_trend 
+mr_trend$FIPS <- as.character(mr_trend$FIPS)
+mr_trend_pov <- left_join(pov, mr_trend, by = "FIPS")
+mr_trend_pov <- na.omit(mr_trend_pov)
+temp2 <- select(maindf, FIPS, bachelors_quartile)
+mr_trend_pov <- left_join(temp2, mr_trend_pov, by = "FIPS")
+
+#aggregate df to find avg mortality rate each day w/in the quartiles
+mr_trend_agg <- aggregate(mr_trend_pov, by = list(mr_trend_pov$bachelors_quartile), FUN = mean)
+is.na(mr_trend_agg) <- sapply(mr_trend_agg, is.infinite)
+mr_trend_agg[is.na(mr_trend_agg)] <- 0
+#want x axis to be day and y axis to be average and color by quartile
+transpose <- t(mr_trend_agg)
+transpose <- transpose[-c(1:5), ]
+colnames(transpose) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
+
+dates <- read.csv("/Users/abbyeast/Desktop/fall 22/stat3355/project/data/Dates.csv", 
+                  header = FALSE)
+colnames(dates) <- c("Date")
+bind <- cbind(dates, transpose)
+bind$Date <- as.Date(bind$Date)
+bind$Quartile_1 <- as.numeric(bind$Quartile_1)
+bind$Quartile_2 <- as.numeric(bind$Quartile_2)
+bind$Quartile_3 <- as.numeric(bind$Quartile_3)
+bind$Quartile_4 <- as.numeric(bind$Quartile_4)
+ggplot(data = bind) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_4, color = "4")) +
+  scale_color_manual(name = "Quartile", 
+                     breaks = c("1", "2", "3", 
+                                "4"), 
+                     values = c("1" = 1, "2" = 2, 
+                                "3" = 3, "4" = 4)) +
+  theme(legend.title = element_text(size = 10), 
+        legend.text = element_text(size = 7)) +
+  labs(x = "Date", y = "Average Mortality Rate", main = "Mortality Rate By Quartile")
