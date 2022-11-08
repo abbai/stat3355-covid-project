@@ -321,3 +321,155 @@ ggplot(data = bind) +
         legend.text = element_text(size = 7)) +
   labs(x = "Date", y = "Average Mortality Rate", main = "Mortality Rate By Quartile")
 
+#Find white quartile
+quantile(race$White_perc)
+#create new column with white quartiles 
+race$white_quartile <- as.factor(ifelse(race$White_perc <= 0.79520388, '1', 
+                                        ifelse(race$White_perc <= .91262314, '2', 
+                                               ifelse(race$White_perc <= 0.95411157, '3', 
+                                                      ifelse(race$White_perc <= 1, '4')))))
+#Find black quartiles
+quantile(race$Black_perc)
+race$black_quartile <- as.factor(ifelse(race$Black_perc <= 0.008927714, '1', 
+                                        ifelse(race$Black_perc <= 0.025427597, '2', 
+                                               ifelse(race$Black_perc <= 0.108602869, '3', 
+                                                      ifelse(race$Black_perc <= 1, '4')))))
+#Find hispanic quartiles
+quantile(race$Hispanic_perc)
+race$hispanic_quartile <- as.factor(ifelse(race$Hispanic_perc <= 0.024699270, '1', 
+                                           ifelse(race$Hispanic_perc <= 0.044783246, '2', 
+                                                  ifelse(race$Hispanic_perc <= 0.101442643, '3', 
+                                                         ifelse(race$Hispanic_perc <= 1, '4')))))
+#Find asian quartiles 
+quantile(race$Asian_perc)
+race$asian_quartile <- as.factor(ifelse(race$Asian_perc <= 0.004774536, '1', 
+                                        ifelse(race$Asian_perc <= 0.007524692, '2', 
+                                               ifelse(race$Asian_perc <= 0.014507827, '3', 
+                                                      ifelse(race$Asian_perc <= 1, '4')))))
+
+#create race quartile trend graphs 
+mr_trend_race <- left_join(race, mr_trend, by = "FIPS")
+mr_white_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$white_quartile), FUN = mean)
+mr_white_agg <- mr_white_agg[, -c(2,3,5:13)]
+is.na(mr_white_agg) <- sapply(mr_white_agg, is.infinite)
+mr_white_agg[is.na(mr_white_agg)] <- 0
+#want x axis to be day and y axis to be average and color by quartile
+transpose_white <- t(mr_white_agg)
+transpose_white <- transpose_white[-c(1:2), ]
+colnames(transpose_white) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
+
+bind_white <- cbind(dates, transpose_white)
+bind_white$Date <- as.Date(bind_white$Date)
+bind_white$Quartile_1 <- as.numeric(bind_white$Quartile_1)
+bind_white$Quartile_2 <- as.numeric(bind_white$Quartile_2)
+bind_white$Quartile_3 <- as.numeric(bind_white$Quartile_3)
+bind_white$Quartile_4 <- as.numeric(bind_white$Quartile_4)
+
+ggplot(data = bind_white) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_4, color = "4")) +
+  scale_color_manual(name = "Quartile", 
+                     breaks = c("1", "2", "3", 
+                                "4"), 
+                     values = c("1" = 1, "2" = 2, 
+                                "3" = 3, "4" = 4)) +
+  theme(legend.title = element_text(size = 10), 
+        legend.text = element_text(size = 7)) +
+  labs(x = "Date", y = "Average Mortality Rate", title = "Mortality Rate By White Quartile")
+
+# Black 
+mr_trend_race <- left_join(race, mr_trend, by = "FIPS")
+mr_black_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$black_quartile), FUN = mean)
+mr_black_agg <- mr_black_agg[, -c(2:4,6:13)]
+is.na(mr_black_agg) <- sapply(mr_black_agg, is.infinite)
+mr_black_agg[is.na(mr_black_agg)] <- 0
+#want x axis to be day and y axis to be average and color by quartile
+transpose_black <- t(mr_black_agg)
+transpose_black <- transpose_black[-c(1:2), ]
+colnames(transpose_black) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
+
+bind_black <- cbind(dates, transpose_black)
+bind_black$Date <- as.Date(bind_black$Date)
+bind_black$Quartile_1 <- as.numeric(bind_black$Quartile_1)
+bind_black$Quartile_2 <- as.numeric(bind_black$Quartile_2)
+bind_black$Quartile_3 <- as.numeric(bind_black$Quartile_3)
+bind_black$Quartile_4 <- as.numeric(bind_black$Quartile_4)
+
+ggplot(data = bind_black) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_4, color = "4")) +
+  scale_color_manual(name = "Quartile", 
+                     breaks = c("1", "2", "3", 
+                                "4"), 
+                     values = c("1" = 1, "2" = 2, 
+                                "3" = 3, "4" = 4)) +
+  theme(legend.title = element_text(size = 10), 
+        legend.text = element_text(size = 7)) +
+  labs(x = "Date", y = "Average Mortality Rate", title = "Mortality Rate By Black Quartile")
+
+# Hispanic Quartile
+mr_hispanic_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$hispanic_quartile), FUN = mean)
+mr_hispanic_agg <- mr_hispanic_agg[, -c(2:8,10:13)]
+is.na(mr_hispanic_agg) <- sapply(mr_hispanic_agg, is.infinite)
+mr_hispanic_agg[is.na(mr_hispanic_agg)] <- 0
+#want x axis to be day and y axis to be average and color by quartile
+transpose_hispanic <- t(mr_hispanic_agg)
+transpose_hispanic <- transpose_hispanic[-c(1:2), ]
+colnames(transpose_hispanic) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
+
+bind_hispanic <- cbind(dates, transpose_hispanic)
+bind_hispanic$Date <- as.Date(bind_hispanic$Date)
+bind_hispanic$Quartile_1 <- as.numeric(bind_hispanic$Quartile_1)
+bind_hispanic$Quartile_2 <- as.numeric(bind_hispanic$Quartile_2)
+bind_hispanic$Quartile_3 <- as.numeric(bind_hispanic$Quartile_3)
+bind_hispanic$Quartile_4 <- as.numeric(bind_hispanic$Quartile_4)
+
+ggplot(data = bind_hispanic) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_4, color = "4")) +
+  scale_color_manual(name = "Quartile", 
+                     breaks = c("1", "2", "3", 
+                                "4"), 
+                     values = c("1" = 1, "2" = 2, 
+                                "3" = 3, "4" = 4)) +
+  theme(legend.title = element_text(size = 10), 
+        legend.text = element_text(size = 7)) +
+  labs(x = "Date", y = "Average Mortality Rate", title = "Mortality Rate By Hispanic Quartile")
+
+
+# Asian
+mr_asian_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$asian_quartile), FUN = mean)
+mr_asian_agg <- mr_asian_agg[, -c(2:8,10:13)]
+is.na(mr_asian_agg) <- sapply(mr_asian_agg, is.infinite)
+mr_asian_agg[is.na(mr_asian_agg)] <- 0
+#want x axis to be day and y axis to be average and color by quartile
+transpose_asian <- t(mr_asian_agg)
+transpose_asian <- transpose_asian[-c(1:2), ]
+colnames(transpose_asian) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
+
+bind_asian <- cbind(dates, transpose_asian)
+bind_asian$Date <- as.Date(bind_asian$Date)
+bind_asian$Quartile_1 <- as.numeric(bind_asian$Quartile_1)
+bind_asian$Quartile_2 <- as.numeric(bind_asian$Quartile_2)
+bind_asian$Quartile_3 <- as.numeric(bind_asian$Quartile_3)
+bind_asian$Quartile_4 <- as.numeric(bind_asian$Quartile_4)
+
+ggplot(data = bind_asian) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_4, color = "4")) +
+  scale_color_manual(name = "Quartile", 
+                     breaks = c("1", "2", "3", 
+                                "4"), 
+                     values = c("1" = 1, "2" = 2, 
+                                "3" = 3, "4" = 4)) +
+  theme(legend.title = element_text(size = 10), 
+        legend.text = element_text(size = 7)) +
+  labs(x = "Date", y = "Average Mortality Rate", title = "Mortality Rate By Asian Quartile")
