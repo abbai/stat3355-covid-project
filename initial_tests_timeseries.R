@@ -602,19 +602,18 @@ ggplot() +
   geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
   coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
   geom_point(data = low_pov, mapping = aes(x = long, y = Lat), 
-             alpha = .5, color = "white") +
+             alpha = .7, color = "white") +
   geom_point(data = low_ratio, mapping = aes(x = long, y = Lat), 
              alpha = .5, color = "green") +
   coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
   labs (title = "Low mortality rate, Low poverty levels") 
-
 
 # HIGH POVERTY, HIGH MORTALITY
 ggplot() + 
   geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
   coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
   geom_point(data = high_pov, mapping = aes(x = long, y = Lat), 
-             alpha = .5, color = "white") +
+             alpha = .7, color = "white") +
   geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
              alpha = .5, color = "red") +
   coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
@@ -686,7 +685,7 @@ ggplot() +
   geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
   coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
   geom_point(data = high_black, mapping = aes(x = long, y = Lat), 
-             alpha = .5, color = "white") +
+             alpha = .7, color = "white") +
   geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
              alpha = .5, color = "red") +
   coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
@@ -729,6 +728,6 @@ groups <- select(maindf, ratio, poverty_percent_all_ages, median_household_incom
 groups_corrs <- cor(groups, method = "spearman")
 groups_corrp <- cor(groups, method = "pearson")
 corrplot(abs(groups_corrp), method = "color", tl.col = "black", tl.cex = .75, is.corr = FALSE,
-         cl.lim=c(0,1), col=colorRampPalette(c("steelblue", "lightblue1"))(200))
+         cl.lim=c(0,.5), col=colorRampPalette(c("steelblue", "lightblue1"))(200))
 corrplot(abs(groups_corrs), method = "color", tl.col = "black", tl.cex = .75, is.corr = FALSE,
          cl.lim=c(0,1), col=colorRampPalette(c("steelblue", "lightblue1"))(200))
