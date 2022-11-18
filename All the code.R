@@ -3,6 +3,7 @@ library(janitor)
 library(dplyr)
 library(stringr)
 library(data.table)
+library(corrplot)
 
 # IMPORT DATAFRAMES
 cases <- read.table("C:/Users/carly/OneDrive/Documents/R/Data/confirmedcases.txt", 
@@ -985,3 +986,18 @@ X <- names(correlations)
 Y <- names(correlations)
 correlations <- t(correlations)
 correlations <- data.frame(correlations)
+
+# HEAT MAP OF CORRELATIONS
+# blue = pos corr
+# red = neg corr
+maindf$no_HS <- as.numeric(maindf$no_HS)
+maindf$HS <- as.numeric(maindf$HS)
+groups <- dplyr::select(maindf, ratio, poverty_percent_all_ages, median_household_income, unemp_percent,
+                 White_perc, Black_perc, Asian_perc, Hispanic_perc, 
+                 bachelors, no_HS, HS)
+groups_corrs <- cor(groups, method = "spearman")
+groups_corrp <- cor(groups, method = "pearson")
+corrplot(abs(groups_corrp), method = "color", tl.col = "black", tl.cex = .75, is.corr = FALSE,
+         cl.lim=c(0,.5), col=colorRampPalette(c("steelblue", "lightblue1"))(200))
+corrplot(abs(groups_corrs), method = "color", tl.col = "black", tl.cex = .75, is.corr = FALSE,
+         cl.lim=c(0,1), col=colorRampPalette(c("steelblue", "lightblue1"))(200))
