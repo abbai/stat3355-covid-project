@@ -2,6 +2,9 @@ library(ggplot2)
 library(janitor)
 library(dplyr)
 library(stringr)
+library(data.table)
+
+# IMPORT DATAFRAMES
 cases <- read.table("C:/Users/carly/OneDrive/Documents/R/Data/confirmedcases.txt", 
                                  quote = "\"", header = TRUE, sep = ",", fill = TRUE)
 deaths <- read.table("C:/Users/carly/OneDrive/Documents/R/Data/deaths.txt", 
@@ -13,9 +16,18 @@ mortality_rate_df$cases <- cases[c(length(cases))]
 mortality_rate_df$deaths <- deaths[c(length(cases))]
 mortality_rate_df$ratio <- mortality_rate_df$deaths / mortality_rate_df$cases
 
+
+
+# POVERTY 
+pov <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/poverty_data.csv", header = FALSE)
+pov <- row_to_names(pov, 4, remove_rows_above = TRUE)
+pov <- clean_names(pov)
+pov <- pov[-1,]
+
 # RACE
 race <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/race.csv", 
                  fill = TRUE)
+
 # EMPLOYMENT
 employment <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/laucnty21.csv",
                        fill = TRUE)
@@ -29,16 +41,24 @@ uidref <- read.table("C:/Users/carly/OneDrive/Documents/R/Data/UID_lookup.txt",
 uidref <- uidref[which(uidref$iso3 == "USA"),]
 uidref <- uidref[-c(2:177),]
 
-# POVERTY 
-pov <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/poverty_data.csv", header = FALSE)
-pov <- row_to_names(pov, 4, remove_rows_above = TRUE)
-pov <- clean_names(pov)
-pov <- pov[-1,]
+
+#Extract Longitude and Latitude from Cases 
+latlong <- dplyr::select(cases, FIPS, Lat, Long_)
+latlong <- rename(cases, long = Long_)
+latlong$FIPS <- as.character(latlong$FIPS)
+latlong <- dplyr::select(latlong, FIPS, Lat, long)
+
+
+
+
+
+
+
+
 
 ### CLEANING ... ####
 
 # MORTALITY RATE DF
-
 # .05 is cdc cutoff for mortality rates !!! anything above it is inaccurate
 mortality_rate_df <- mortality_rate_df[which(mortality_rate_df$ratio < .05),]
 # do not include entries with 0 deaths; throws off our stats, likely inaccurate
@@ -50,6 +70,8 @@ mortality_rate_df[mortality_rate_df == ""] <- NA
 mortality_rate_df <- filter(mortality_rate_df, is.na(Admin2) == FALSE)
 # Keep only fips, mortality ratio columns
 mortality_rate_df <- dplyr::select(mortality_rate_df, FIPS, ratio)
+mortality_rate_df$FIPS <- as.character(mortality_rate_df$FIPS)
+
 
 # POVERTY
 
@@ -68,22 +90,37 @@ pov$county_fips_code <- gsub(" ", "", pov$county_fips_code)
 pov$county_fips_code <- str_remove(pov$county_fips_code, "^0+")
 # keep only fips, poverty percentage, median household income
 pov <- dplyr::select(pov, county_fips_code, poverty_percent_all_ages, median_household_income)
+pov <- na.omit(pov)
+pov$poverty_percent_all_ages <- as.numeric(as.character(pov$poverty_percent_all_ages))
+pov$median_household_income <- as.numeric(gsub(",", "", pov$median_household_income))
+pov <- rename(pov, FIPS = county_fips_code)
 
-# EMPLOYMENT
+
+
 
 # EDUCATIONAL DATA
-education <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/Education.csv", 
+edu <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/Education.csv", 
                       header = TRUE, fill = TRUE)
-education <- education[-c(1:3), -c(2:43)]
+edu <- row_to_names(edu, 4, remove_rows_above = TRUE)
+edu <- clean_names(edu)
+edu <- edu[-1,]
+# add fips 
+edu$FIPS <- sub("^0+", "", edu$fips_code) 
+# filter out relevant info and rename it
+edu <- dplyr::select(edu, FIPS, percent_of_adults_with_less_than_a_high_school_diploma_2015_19,
+              percent_of_adults_with_a_high_school_diploma_only_2015_19,
+              percent_of_adults_with_a_bachelors_degree_or_higher_2015_19)
+edu <- rename(edu, no_HS = percent_of_adults_with_less_than_a_high_school_diploma_2015_19,
+              HS = percent_of_adults_with_a_high_school_diploma_only_2015_19,
+              bachelors = percent_of_adults_with_a_bachelors_degree_or_higher_2015_19)
+edu$bachelors <- as.integer(edu$bachelors)
 
-#change column names 
-names(education) <- c("FIPS", "no_HS", "HS", "some_college", "BD")
-education <- education[-c(1), ]
-education$FIPS <- as.numeric(education$FIPS)
-education$no_HS <- as.numeric(education$no_HS)
-education$HS <- as.numeric(education$HS)
-education$some_college <- as.numeric(education$some_college)
-education$BD <- as.numeric(education$BD)
+#change to numeric vectors 
+edu$no_HS <- as.numeric(edu$no_HS)
+edu$HS <- as.numeric(edu$HS)
+edu$bachelors <- as.numeric(edu$bachelors)
+
+# EMPLOYMENT
 
 # fix fips to include state code
 employment$code <- paste(employment$code_2, employment$code_3)
@@ -91,236 +128,11 @@ employment$code <- gsub(" ", "", employment$code)
 employment$code <- str_remove(employment$code, "^0+")
 # keep only fips, unemployment percent
 employment <- dplyr::select(employment, code, percent)
-#Change FIPS to numeric to remove 0's
+employment <- rename(employment, FIPS = code)
+employment <- rename(employment, unemp_percent = percent)
+employment$unemp_percent <- as.numeric(employment$unemp_percent)
 
-#separate into quartiles
-pov$poverty_percent_all_ages <- as.numeric(as.character(pov$poverty_percent_all_ages))
-pov <- pov[-c(551), ]
-#find quantiles 
-quantile(pov$poverty_percent_all_ages)
-pov$quartile <- as.factor(ifelse(pov$poverty_percent_all_ages <= 9.9, '1', 
-                          ifelse(pov$poverty_percent_all_ages <= 12.8, '2', 
-                          ifelse(pov$poverty_percent_all_ages <= 16.6, '3', 
-                          ifelse(pov$poverty_percent_all_ages <= 43.9, '4')))))
-#graph poverty distribution w/in US
-#overall poverty distribution w/in US
-ggplot(data = pov) +
-  geom_density(mapping = aes(x = poverty_percent_all_ages))
-#separate by quartiles 
-ggplot(data = pov) +
-  geom_density(mapping = aes(x = poverty_percent_all_ages, color = quartile))
-#change pov name for FIPS
-
-names(pov)[names(pov) == 'county_fips_code'] <- 'FIPS'
-#change mortality rate df FIPS to character 
-mortality_rate_df$FIPS <- as.character(mortality_rate_df$FIPS)
-#join poverty data and mortality rate 
-pov_and_mr <- left_join(mortality_rate_df, pov, by = "FIPS")
-#remove NAs
-pov_and_mr <- na.omit(pov_and_mr)
-#graph density of mortality rate by quartile (quartile 1 means richer area)
-#unlist ratio? 
-# create new column to create normalized density plot
-pov_and_mr$ratio <- unlist(pov_and_mr$ratio)
-ggplot(data = pov_and_mr, aes(ratio, color = quartile)) + 
-  geom_density() +
-  labs(x = "Mortality Rate", y = "Density", 
-       title = "Mortality Rate Density Curve", 
-       color = "Poverty Percent Quartile")
-
-#see if correlation between poverty percent and mortality rate
-ggplot(data = pov_and_mr) + 
-  geom_point(mapping = aes(x = poverty_percent_all_ages, y = ratio, 
-                           color = quartile))
-#subset poverty data to find mean of each quartile 
-pov_and_mr1 <- pov_and_mr[pov_and_mr$quartile == "1", ]
-quartile_1mean <- mean(pov_and_mr1$ratio)
-# mean = 0.01083488
-pov_and_mr2 <- pov_and_mr[pov_and_mr$quartile == "2", ]
-quartile_2mean <- mean(pov_and_mr2$ratio)
-# mean = 0.01387041
-pov_and_mr3 <- pov_and_mr[pov_and_mr$quartile == "3", ]
-quartile_3mean <- mean(pov_and_mr3$ratio)
-# mean = 0.01561862
-pov_and_mr4 <- pov_and_mr[pov_and_mr$quartile == "4", ]
-quartile_4mean <- mean(pov_and_mr4$ratio)
-# mean = 0.01701428
-
-#Working w/ median household income data 
-#change median household income to numeric vector 
-pov_and_mr$median_household_income <- as.numeric(gsub(",", "", pov_and_mr$median_household_income))
-#distribution of med hh income in US
-ggplot(data = pov_and_mr) + 
-  geom_density(mapping = aes(x = median_household_income))
-
-#separate hh income into quartiles 
-#find quantiles 
-quantile(pov_and_mr$median_household_income)
-pov_and_mr$medhh_quartile <- as.factor(ifelse(pov_and_mr$median_household_income <= 47722, '1', 
-                                       ifelse(pov_and_mr$median_household_income <= 55055, '2', 
-                                       ifelse(pov_and_mr$median_household_income <= 63963, '3',
-                                       ifelse(pov_and_mr$median_household_income <= 160305, '4')))))
-#plot mortality rate by med hh income quartiles
-ggplot(data = pov_and_mr) + 
-  geom_density(mapping = aes(x = ratio, color = medhh_quartile)) +
-  labs(x = "Mortality Rate", y = "Density", 
-       title = "Mortality Rate Density", 
-       color = "Med. HH Income Quartile")
-
-#find avg mortality rate among different quartiles 
-mean_medhh1 <- mean(pov_and_mr$ratio[pov_and_mr$medhh_quartile == '1'])
-# mean = 0.01789561
-mean_medhh2 <- mean(pov_and_mr$ratio[pov_and_mr$medhh_quartile == '2'])
-# mean = 0.01573182
-mean_medhh3 <- mean(pov_and_mr$ratio[pov_and_mr$medhh_quartile == '3'])
-# mean = 0.01331643
-mean_medhh4 <- mean(pov_and_mr$ratio[pov_and_mr$medhh_quartile == '4'])
-# mean = 0.01032676
-
-#Education Data
-#merge education, poverty, and mortality rate data
-#change FIPS to numeric in pov_and_mr to join 
-pov_and_mr$FIPS <- as.numeric(pov_and_mr$FIPS)
-edu_pov_mr <- left_join(pov_and_mr, education, by = "FIPS")
-edu_pov_mr <- na.omit(edu_pov_mr)
-#test correlation between each education level
-#didn't complete high school
-ggplot(data = edu_pov_mr, aes(x = no_HS, y = ratio)) +
-  geom_point() +
-  geom_jitter(alpha = 0.5)
-
-#completed high school
-ggplot(data = edu_pov_mr, aes(x = HS, y = ratio)) +
-  geom_point() +
-  geom_smooth(method = lm) +
-  labs(x = "% of County that Completed High School", y = "Mortality Rate", 
-       title = "Mortality Rate vs Percent of County that Completed High school") +
-  theme(plot.title = element_text(hjust = 0.5))
-
-#some college
-ggplot(data = edu_pov_mr) +
-  geom_point(mapping = aes(x = some_college, y = ratio))
-
-#Bachelor's Degree
-ggplot(data = edu_pov_mr) +
-  geom_point(mapping = aes(x = BD, y = ratio))
-
-#split into quantiles? 
-quantile(edu_pov_mr$BD)
-edu_pov_mr$BD_quartile <- as.factor(ifelse(edu_pov_mr$BD <= 15.3, '1',
-                                           ifelse(edu_pov_mr$BD <= 19.5, '2', 
-                                                  ifelse(edu_pov_mr$BD <= 26, '3', 
-                                                         ifelse(edu_pov_mr$BD <= 77.6, '4'))))) 
-#split ratio into quartiles
-edu_pov_mr$ratio_quartile <- as.factor(ifelse(edu_pov_mr$ratio <= 0.010225385, '1',
-                                           ifelse(edu_pov_mr$ratio <= 0.013472447, '2', 
-                                                  ifelse(edu_pov_mr$ratio <= 0.017375413, '3', 
-                                                         ifelse(edu_pov_mr$ratio <= 0.05, '4'))))) 
-
-ggplot(data = edu_pov_mr) +
-  geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = BD_quartile)) +
-  labs(x = "Mortality Rate Quartile", y = "Count", title = "Mortality Rate by Bachelor's Quartile", 
-       fill = "Bachelor's Degree\nQuartile") +
-  theme(plot.title = element_text(hjust = 0.5))
-ggsave("mr quartile by BD Bar.png", 
-       plot = last_plot(), width = 5.5, height = 4)
-
-ggplot(data = edu_pov_mr) +
-  geom_density(mapping = aes(x = ratio, color = BD_quartile)) +
-  labs(x = "Mortality Rate", y = "Density", title = "Mortality Rate Density", 
-       color = "Bachelor Degree\n Quartile") +
-  theme(plot.title = element_text(hjust = 0.5))
-mean(pov_and_mr$ratio)
-
-ggplot(data = edu_pov_mr) +
-  geom_histogram(mapping = aes(x = ratio, fill = BD_quartile))
-
-ggplot(data = edu_pov_mr) +
-  geom_boxplot(mapping = aes(x = BD_quartile, y = ratio, color = BD_quartile)) +
-  labs(x = "Bachelor Degree Quartile", y = "Mortality Rate", 
-       title = "Mortality Rate Distribution by Bachelor's Degree Quartile", 
-       color = "Bachelor's Degree\nQuartile") +
-  theme(plot.title = element_text(hjust = 0.5), 
-        legend.title = element_text(size=10))
-ggsave("mortality rate distribution by BD BP.png", 
-       plot = last_plot(), width = 5.5, height = 4)
-
-
-  
-#median mortality rate among different quartiles 
-BD_one_med <- median(edu_pov_mr$ratio[edu_pov_mr$BD_quartile == "1"])
-
-BD_two_med <- median(edu_pov_mr$ratio[edu_pov_mr$BD_quartile == "2"])
-
-BD_three_med <- median(edu_pov_mr$ratio[edu_pov_mr$BD_quartile == "3"])
-
-BD_four_med <- median(edu_pov_mr$ratio[edu_pov_mr$BD_quartile == "4"])
-
-#attempt to find mortality rate for each day
-# get rid of unnecessary columns from deaths and cases
-deaths <- deaths[, -c(1:4, 6, 8:54)]
-cases <- cases[, -c(1:4, 6, 8:53)]
-
-#column 960: start of deaths
-#column 3: start of cases
-deaths <- na.omit(deaths)
-cases <- na.omit(cases)
-mr_trend <- data.frame(deaths$FIPS, deaths$Province_State)
-for(i in 3:ncol(cases)){
-  x <- deaths[[i]]
-  y <- cases[[i]]
-  new <- x/y
-  mr_trend[, ncol(mr_trend) + 1] <- new
-  colnames(mr_trend)[ncol(mr_trend)] <- paste0("new", i)
-}
-
-mr_trend[is.na(mr_trend)] <- 0
-
-names(mr_trend)[names(mr_trend) == "deaths.FIPS"] <- "FIPS"
-#remove Province_State 
-mr_trend <- mr_trend[, -c(2)]
-#change FIPS to character for mr_trend 
-mr_trend$FIPS <- as.character(mr_trend$FIPS)
-mr_trend_pov <- left_join(pov, mr_trend, by = "FIPS")
-mr_trend_pov <- na.omit(mr_trend_pov)
-
-#aggregate df to find avg mortality rate each day w/in the quartiles
-mr_trend_agg <- aggregate(mr_trend_pov, by = list(mr_trend_pov$quartile), FUN = mean)
-is.na(mr_trend_agg) <- sapply(mr_trend_agg, is.infinite)
-mr_trend_agg[is.na(mr_trend_agg)] <- 0
-#want x axis to be day and y axis to be average and color by quartile
-transpose <- t(mr_trend_agg)
-transpose <- transpose[-c(1:5), ]
-colnames(transpose) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
-
-dates <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/Dates.csv", 
-                  header = FALSE)
-colnames(dates) <- c("Date")
-bind <- cbind(dates, transpose)
-bind$Date <- as.Date(bind$Date)
-bind$Quartile_1 <- as.numeric(bind$Quartile_1)
-bind$Quartile_2 <- as.numeric(bind$Quartile_2)
-bind$Quartile_3 <- as.numeric(bind$Quartile_3)
-bind$Quartile_4 <- as.numeric(bind$Quartile_4)
-ggplot(data = bind) +
-  geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
-  geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
-  geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
-  geom_smooth(mapping = aes(x = Date, y = Quartile_4, color = "4")) +
-  scale_color_manual(name = "Poverty Quartile", 
-                     breaks = c("1", "2", "3", 
-                                "4"), 
-                     values = c("1" = 1, "2" = 2, 
-                                "3" = 3, "4" = 4)) +
-  theme(legend.title = element_text(size = 9), 
-        legend.text = element_text(size = 9)) +
-  labs(x = "Date", y = "Average Mortality Rate", 
-       title = "Mortality Rate Trend") +
-  theme(plot.title = element_text(hjust = 0.5, size = 13))
-ggsave("mortality rate trend by POV.png", 
-       plot = last_plot(), width = 5.5, height = 4)
-
-#RACE 
+#Race Data 
 race <- race[race$YEAR == 12, ]
 racevars <- c("SUMLEV", "STATE", "COUNTY", "CTYNAME", "AGEGRP", "TOT_POP",
               "WA_MALE", "WA_FEMALE",
@@ -369,7 +181,7 @@ racevars4 <- c("AGEGRP", "TOT_POP",
                "White_perc",
                "Black_perc",
                "Native_perc",
-              "Asian_perc",
+               "Asian_perc",
                "Hawaiian_perc",
                "Hispanic_perc", "FIPS")
 race <- race[racevars4]
@@ -385,41 +197,269 @@ racevars5 <- c("FIPS", "TOT_POP",
                "Hispanic_perc")
 race <- race[racevars5]
 
+
+#Create Main Dataframe 
+maindf <- inner_join(mortality_rate_df, pov, by = "FIPS")
+maindf <- inner_join(maindf, employment, by = "FIPS")
+maindf <- inner_join(maindf, edu, by = "FIPS")
+maindf <- inner_join(maindf, latlong, by = "FIPS")
+maindf$poverty_percent_all_ages <- as.integer(maindf$poverty_percent_all_ages)
+maindf <- inner_join(maindf, race, by = "FIPS")
+
+# Working w/ data
+# Create Quartiles 
+#Poverty Quartiles
+quantile(maindf$poverty_percent_all_ages)
+#Q1 : 9.9, Q2 : 12.8, Q3 : 16.6, Q4 : 43.9
+
+maindf$pov_quartile <- as.factor(ifelse(maindf$poverty_percent_all_ages <= 9.9, '1', 
+                                     ifelse(maindf$poverty_percent_all_ages <= 12.8, '2', 
+                                            ifelse(maindf$poverty_percent_all_ages <= 16.6, '3', 
+                                                   ifelse(maindf$poverty_percent_all_ages <= 43.9, '4')))))
+# Median Household Income Quartiles
+#find quantiles 
+quantile(maindf$median_household_income)
+maindf$medhh_quartile <- as.factor(ifelse(maindf$median_household_income <= 47722, '1', 
+                                              ifelse(maindf$median_household_income <= 55055, '2', 
+                                                     ifelse(maindf$median_household_income <= 63963, '3',
+                                                            ifelse(maindf$median_household_income <= 160305, '4')))))
+# Bachelor's Degree Quartiles
+#split into quantiles? 
+quantile(maindf$bachelors)
+maindf$bachelors_quartile <- as.factor(ifelse(maindf$bachelors <= 15.3, '1',
+                                                  ifelse(maindf$bachelors <= 19.5, '2', 
+                                                         ifelse(maindf$bachelors <= 26, '3', 
+                                                                ifelse(maindf$bachelors <= 77.6, '4'))))) 
+# Mortality Rate Quartiles
+maindf$ratio_quartile <- as.factor(ifelse(maindf$ratio <= 0.010225385, '1',
+                                              ifelse(maindf$ratio <= 0.013472447, '2', 
+                                                     ifelse(maindf$ratio <= 0.017375413, '3', 
+                                                            ifelse(maindf$ratio <= 0.05, '4'))))) 
 #Find white quartile
-quantile(race$White_perc)
+quantile(maindf$White_perc)
 #create new column with white quartiles 
-race$white_quartile <- as.factor(ifelse(race$White_perc <= 0.79520388, '1', 
-                                        ifelse(race$White_perc <= .91262314, '2', 
-                                               ifelse(race$White_perc <= 0.95411157, '3', 
-                                                      ifelse(race$White_perc <= 1, '4')))))
+maindf$white_quartile <- as.factor(ifelse(maindf$White_perc <= 0.79520388, '1', 
+                                        ifelse(maindf$White_perc <= .91262314, '2', 
+                                               ifelse(maindf$White_perc <= 0.95411157, '3', 
+                                                      ifelse(maindf$White_perc <= 1, '4')))))
 #Find black quartiles
-quantile(race$Black_perc)
-race$black_quartile <- as.factor(ifelse(race$Black_perc <= 0.008927714, '1', 
-                                        ifelse(race$Black_perc <= 0.025427597, '2', 
-                                               ifelse(race$Black_perc <= 0.108602869, '3', 
-                                                      ifelse(race$Black_perc <= 1, '4')))))
+quantile(maindf$Black_perc)
+maindf$black_quartile <- as.factor(ifelse(maindf$Black_perc <= 0.008927714, '1', 
+                                        ifelse(maindf$Black_perc <= 0.025427597, '2', 
+                                               ifelse(maindf$Black_perc <= 0.108602869, '3', 
+                                                      ifelse(maindf$Black_perc <= 1, '4')))))
 #Find hispanic quartiles
-quantile(race$Hispanic_perc)
-race$hispanic_quartile <- as.factor(ifelse(race$Hispanic_perc <= 0.024699270, '1', 
-                                           ifelse(race$Hispanic_perc <= 0.044783246, '2', 
-                                                  ifelse(race$Hispanic_perc <= 0.101442643, '3', 
-                                                         ifelse(race$Hispanic_perc <= 1, '4')))))
+quantile(maindf$Hispanic_perc)
+maindf$hispanic_quartile <- as.factor(ifelse(maindf$Hispanic_perc <= 0.024699270, '1', 
+                                           ifelse(maindf$Hispanic_perc <= 0.044783246, '2', 
+                                                  ifelse(maindf$Hispanic_perc <= 0.101442643, '3', 
+                                                         ifelse(maindf$Hispanic_perc <= 1, '4')))))
 #Find asian quartiles 
-quantile(race$Asian_perc)
-race$asian_quartile <- as.factor(ifelse(race$Asian_perc <= 0.004774536, '1', 
-                                        ifelse(race$Asian_perc <= 0.007524692, '2', 
-                                               ifelse(race$Asian_perc <= 0.014507827, '3', 
-                                                      ifelse(race$Asian_perc <= 1, '4')))))
+quantile(maindf$Asian_perc)
+maindf$asian_quartile <- as.factor(ifelse(maindf$Asian_perc <= 0.004774536, '1', 
+                                        ifelse(maindf$Asian_perc <= 0.007524692, '2', 
+                                               ifelse(maindf$Asian_perc <= 0.014507827, '3', 
+                                                      ifelse(maindf$Asian_perc <= 1, '4')))))
+
+
+
+# Unlist ratio for ggplot
+maindf$ratio <- unlist(maindf$ratio)
+
+# POVERTY 
+
+#graph poverty distribution w/in US
+#overall poverty distribution w/in US
+ggplot(data = maindf) +
+  geom_density(mapping = aes(x = poverty_percent_all_ages))
+
+#graph density of mortality rate by quartile (quartile 1 means richer area)
+
+ggplot(data = maindf, aes(ratio, color = pov_quartile)) + 
+  geom_density() +
+  labs(x = "Mortality Rate", y = "Density", 
+       title = "Mortality Rate Density Curve", 
+       color = "Poverty Percent Quartile")
+
+
+#subset poverty data to find mean of each quartile 
+pov_1 <- maindf[maindf$pov_quartile == "1", ]
+pov_quartile_1mean <- mean(pov_1$ratio)
+# mean = 0.01083488
+pov_2 <- maindf[maindf$pov_quartile == "2", ]
+pov_quartile_2mean <- mean(pov_2$ratio)
+# mean = 0.01387041
+pov_3 <- maindf[maindf$pov_quartile == "3", ]
+pov_quartile_3mean <- mean(pov_3$ratio)
+# mean = 0.01561862
+pov_4 <- maindf[maindf$pov_quartile == "4", ]
+pov_quartile_4mean <- mean(pov_4$ratio)
+# mean = 0.01701428
+
+#Working w/ median household income data 
+#change median household income to numeric vector 
+maindf$median_household_income <- as.numeric(gsub(",", "", maindf$median_household_income))
+#distribution of med hh income in US
+ggplot(data = maindf) + 
+  geom_density(mapping = aes(x = median_household_income))
+
+
+#plot mortality rate by med hh income quartiles
+ggplot(data = maindf) + 
+  geom_density(mapping = aes(x = ratio, color = medhh_quartile)) +
+  labs(x = "Mortality Rate", y = "Density", 
+       title = "Mortality Rate Density", 
+       color = "Med. HH Income Quartile")
+
+#find avg mortality rate among different quartiles 
+mean_medhh1 <- mean(maindf$ratio[maindf$medhh_quartile == '1'])
+# mean = 0.01789561
+mean_medhh2 <- mean(maindf$ratio[maindf$medhh_quartile == '2'])
+# mean = 0.01573182
+mean_medhh3 <- mean(maindf$ratio[maindf$medhh_quartile == '3'])
+# mean = 0.01331643
+mean_medhh4 <- mean(maindf$ratio[maindf$medhh_quartile == '4'])
+# mean = 0.01032676
+
+
+#test correlation between each education level
+#didn't complete high school
+ggplot(data = maindf, aes(x = no_HS, y = ratio)) +
+  geom_point() +
+  geom_jitter(alpha = 0.5)
+
+#completed high school
+ggplot(data = maindf, aes(x = HS, y = ratio)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  labs(x = "% of County that Completed High School", y = "Mortality Rate", 
+       title = "Mortality Rate vs Percent of County that Completed High school") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+#Bachelor's Degree
+ggplot(data = maindf) +
+  geom_point(mapping = aes(x = bachelors, y = ratio))
+
+
+ggplot(data = maindf) +
+  geom_bar(mapping = aes(x = ratio_quartile, y = ..count.., fill = bachelors_quartile)) +
+  labs(x = "Mortality Rate Quartile", y = "Count", title = "Mortality Rate by Bachelor's Quartile", 
+       fill = "Bachelor's Degree\nQuartile") +
+  theme(plot.title = element_text(hjust = 0.5))
+ggsave("mr quartile by BD Bar.png", 
+       plot = last_plot(), width = 5.5, height = 4)
+
+ggplot(data = maindf) +
+  geom_density(mapping = aes(x = ratio, color = bachelors_quartile)) +
+  labs(x = "Mortality Rate", y = "Density", title = "Mortality Rate Density", 
+       color = "Bachelor Degree\n Quartile") +
+  theme(plot.title = element_text(hjust = 0.5))
+mean(maindf$ratio)
+
+ggplot(data = maindf) +
+  geom_histogram(mapping = aes(x = ratio, fill = bachelors_quartile))
+
+ggplot(data = maindf) +
+  geom_boxplot(mapping = aes(x = bachelors_quartile, y = ratio, color = bachelors_quartile)) +
+  labs(x = "Bachelor Degree Quartile", y = "Mortality Rate", 
+       title = "Mortality Rate Distribution by Bachelor's Degree Quartile", 
+       color = "Bachelor's Degree\nQuartile") +
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.title = element_text(size=10))
+ggsave("mortality rate distribution by BD BP.png", 
+       plot = last_plot(), width = 5.5, height = 4)
+
+
+  
+#median mortality rate among different quartiles 
+bachelors_one_med <- median(maindf$ratio[maindf$bachelors_quartile == "1"])
+
+bachelors_two_med <- median(maindf$ratio[maindf$bachelors_quartile == "2"])
+
+bachelors_three_med <- median(maindf$ratio[maindf$bachelors_quartile == "3"])
+
+bachelors_four_med <- median(maindf$ratio[maindf$bachelors_quartile == "4"])
+
+#attempt to find mortality rate for each day
+# get rid of unnecessary columns from deaths and cases
+deaths <- deaths[, -c(1:4, 6, 8:54)]
+cases <- cases[, -c(1:4, 6, 8:53)]
+
+#column 960: start of deaths
+#column 3: start of cases
+deaths <- na.omit(deaths)
+cases <- na.omit(cases)
+mr_trend <- data.frame(deaths$FIPS, deaths$Province_State)
+for(i in 3:ncol(cases)){
+  x <- deaths[[i]]
+  y <- cases[[i]]
+  new <- x/y
+  mr_trend[, ncol(mr_trend) + 1] <- new
+  colnames(mr_trend)[ncol(mr_trend)] <- paste0("new", i)
+}
+
+mr_trend[is.na(mr_trend)] <- 0
+
+names(mr_trend)[names(mr_trend) == "deaths.FIPS"] <- "FIPS"
+#remove Province_State 
+mr_trend <- mr_trend[, -c(2)]
+#change FIPS to character for mr_trend 
+mr_trend$FIPS <- as.character(mr_trend$FIPS)
+mr_trend_pov <- inner_join(maindf, mr_trend, by = "FIPS")
+mr_trend_pov <- na.omit(mr_trend_pov)
+
+#aggregate df to find avg mortality rate each day w/in the quartiles
+mr_trend_agg <- aggregate(mr_trend_pov, by = list(mr_trend_pov$pov_quartile), FUN = mean)
+is.na(mr_trend_agg) <- sapply(mr_trend_agg, is.infinite)
+mr_trend_agg[is.na(mr_trend_agg)] <- 0
+#want x axis to be day and y axis to be average and color by quartile
+transpose <- t(mr_trend_agg)
+#remove everything except Average mortality rates
+transpose <- transpose[-c(1:26), ]
+colnames(transpose) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
+
+dates <- read.csv("C:/Users/carly/OneDrive/Documents/R/Data/Dates.csv", 
+                  header = FALSE)
+colnames(dates) <- c("Date")
+bind <- cbind(dates, transpose)
+bind$Date <- as.Date(bind$Date)
+bind$Quartile_1 <- as.numeric(bind$Quartile_1)
+bind$Quartile_2 <- as.numeric(bind$Quartile_2)
+bind$Quartile_3 <- as.numeric(bind$Quartile_3)
+bind$Quartile_4 <- as.numeric(bind$Quartile_4)
+ggplot(data = bind) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
+  geom_smooth(mapping = aes(x = Date, y = Quartile_4, color = "4")) +
+  scale_color_manual(name = "Poverty Quartile", 
+                     breaks = c("1", "2", "3", 
+                                "4"), 
+                     values = c("1" = 1, "2" = 2, 
+                                "3" = 3, "4" = 4)) +
+  theme(legend.title = element_text(size = 9), 
+        legend.text = element_text(size = 9)) +
+  labs(x = "Date", y = "Average Mortality Rate", 
+       title = "Mortality Rate Trend") +
+  theme(plot.title = element_text(hjust = 0.5, size = 13))
+ggsave("mortality rate trend by POV.png", 
+       plot = last_plot(), width = 5.5, height = 4)
+
+#RACE 
+
+
 
 #create race quartile trend graphs 
-mr_trend_race <- left_join(race, mr_trend, by = "FIPS")
+mr_trend_race <- left_join(maindf, mr_trend, by = "FIPS")
+mr_trend_race <- mr_trend_race[, -c(2:21)]
 mr_white_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$white_quartile), FUN = mean)
-mr_white_agg <- mr_white_agg[, -c(2,3,5:13)]
+mr_white_agg <- mr_white_agg[, -c(1:6)]
 is.na(mr_white_agg) <- sapply(mr_white_agg, is.infinite)
 mr_white_agg[is.na(mr_white_agg)] <- 0
 #want x axis to be day and y axis to be average and color by quartile
 transpose_white <- t(mr_white_agg)
-transpose_white <- transpose_white[-c(1:2), ]
 colnames(transpose_white) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
 
 bind_white <- cbind(dates, transpose_white)
@@ -446,14 +486,12 @@ ggsave("mortality rate distribution white trend.png",
 
 
 # Black 
-mr_trend_race <- left_join(race, mr_trend, by = "FIPS")
 mr_black_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$black_quartile), FUN = mean)
-mr_black_agg <- mr_black_agg[, -c(2:4,6:13)]
+mr_black_agg <- mr_black_agg[, -c(1:6)]
 is.na(mr_black_agg) <- sapply(mr_black_agg, is.infinite)
 mr_black_agg[is.na(mr_black_agg)] <- 0
 #want x axis to be day and y axis to be average and color by quartile
 transpose_black <- t(mr_black_agg)
-transpose_black <- transpose_black[-c(1:2), ]
 colnames(transpose_black) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
 
 bind_black <- cbind(dates, transpose_black)
@@ -480,12 +518,11 @@ ggsave("mortality rate distribution black trend.png",
 
 # Hispanic Quartile
 mr_hispanic_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$hispanic_quartile), FUN = mean)
-mr_hispanic_agg <- mr_hispanic_agg[, -c(2:8,10:13)]
+mr_hispanic_agg <- mr_hispanic_agg[, -c(1:6)]
 is.na(mr_hispanic_agg) <- sapply(mr_hispanic_agg, is.infinite)
 mr_hispanic_agg[is.na(mr_hispanic_agg)] <- 0
 #want x axis to be day and y axis to be average and color by quartile
 transpose_hispanic <- t(mr_hispanic_agg)
-transpose_hispanic <- transpose_hispanic[-c(1:2), ]
 colnames(transpose_hispanic) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
 
 bind_hispanic <- cbind(dates, transpose_hispanic)
@@ -512,12 +549,11 @@ ggplot(data = bind_hispanic) +
 
 # Asian
 mr_asian_agg <- aggregate(mr_trend_race, by = list(mr_trend_race$asian_quartile), FUN = mean)
-mr_asian_agg <- mr_asian_agg[, -c(2:8,10:13)]
+mr_asian_agg <- mr_asian_agg[, -c(1:6)]
 is.na(mr_asian_agg) <- sapply(mr_asian_agg, is.infinite)
 mr_asian_agg[is.na(mr_asian_agg)] <- 0
 #want x axis to be day and y axis to be average and color by quartile
 transpose_asian <- t(mr_asian_agg)
-transpose_asian <- transpose_asian[-c(1:2), ]
 colnames(transpose_asian) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
 
 bind_asian <- cbind(dates, transpose_asian)
@@ -544,8 +580,8 @@ ggplot(data = bind_asian) +
   theme(plot.title = element_text(hjust = 0.5, size = 13))
 
   
-ggplot(data = edu_pov_mr) +
-  geom_boxplot(mapping = aes(x = quartile, y = ratio, color = quartile)) +
+ggplot(data = maindf) +
+  geom_boxplot(mapping = aes(x = pov_quartile, y = ratio, color = pov_quartile)) +
   labs(x = "Poverty Percent Quartile", y = "Mortality Rate", 
        title = "Mortality Rate Distribution by Poverty Quartile", 
        color = "Poverty Percent Quartile") +
@@ -554,76 +590,35 @@ ggplot(data = edu_pov_mr) +
 ggsave("mortality rate distribution by POV BP.png", 
        plot = last_plot(), width = 5.5, height = 4)
 #find median of each poverty quartile 
-median(pov_and_mr1$ratio)
-median(pov_and_mr2$ratio)  
-median(pov_and_mr3$ratio)
-median(pov_and_mr4$ratio)
-median(pov_and_mr$ratio)
+median(pov_1$ratio)
+median(pov_2$ratio)  
+median(pov_3$ratio)
+median(pov_4$ratio)
+median(maindf$ratio)
 
-(median(pov_and_mr4$ratio) - median(pov_and_mr$ratio))/median(pov_and_mr$ratio)
+(median(pov_4$ratio) - median(maindf$ratio))/median(maindf$ratio)
 
 #find mean of each poverty quartile 
-mean(pov_and_mr1$ratio)
-mean(pov_and_mr2$ratio)  
-mean(pov_and_mr3$ratio)
-mean(pov_and_mr4$ratio)
-mean(pov_and_mr$ratio)
-t.test(pov_and_mr1$ratio, mu = mean(pov_and_mr$ratio))
+mean(pov_1$ratio)
+mean(pov_2$ratio)  
+mean(pov_3$ratio)
+mean(pov_4$ratio)
+mean(maindf$ratio)
+t.test(pov_1$ratio, mu = mean(maindf$ratio))
 
 #Population by county data set 
 population <- race[, c(1,2)]
 population$FIPS <- as.numeric(population$FIPS)
-recent_cases <- cases[, c(1,375)]
-inf_rate <- left_join(recent_cases, population, by = "FIPS")
+oct_cases <- cases[, c(1,959)]
+inf_rate <- left_join(oct_cases, population, by = "FIPS")
 inf_rate <- na.omit(inf_rate)
-inf_rate$infection_ratio <- inf_rate$X3.11.21 / inf_rate$TOT_POP
-all_df <- left_join(edu_pov_mr, inf_rate, by = "FIPS")
-all_df <- all_df[ , -c(13, 14)]
-all_df <- na.omit(all_df)
-#Box plots for infection rate 
-ggplot(data = all_df) +
-  geom_boxplot(mapping = aes(x = quartile, y = infection_ratio, 
-                             color = quartile)) + 
-  labs(x = "Poverty Quartile", y = "Infection Rate", 
-       title = "Infection Rate by Poverty Quartile", color = "Poverty\nQuartile") +
-  theme(plot.title = element_text(hjust = 0.5), 
-        legend.title = element_text(size=10))
-ggsave("infection rate distribution by POV BP.png", 
-       plot = last_plot(), width = 5.5, height = 4)
+inf_rate$infection_ratio <- inf_rate$X10.16.22 / inf_rate$TOT_POP
+inf_rate <- filter(inf_rate, infection_ratio <= 1)
+inf_rate$FIPS <- as.character(inf_rate$FIPS)
+# Add infection ratio to main data frame
+maindf <- inner_join(maindf, inf_rate, by = c("FIPS", "TOT_POP"))
+maindf <- na.omit(maindf)
 
-ggplot(data = all_df) +
-  geom_boxplot(mapping = aes(x = BD_quartile, y = infection_ratio, 
-                             color = BD_quartile)) + 
-  labs(x = "Bachelor's Quartile", y = "Infection Rate", 
-       title = "Infection Rate by Bachelor's Quartile", color = "Bachelor's\nQuartile") +
-  theme(plot.title = element_text(hjust = 0.5), 
-        legend.title = element_text(size=10))
-ggsave("infection rate distribution by BD BP.png", 
-       plot = last_plot(), width = 5.5, height = 4)
-
-raceq <- race[, c(1, 9:12)]
-raceq$FIPS <- as.numeric(raceq$FIPS)
-all_df <- left_join(all_df, raceq, by = "FIPS")
-
-ggplot(data = all_df) +
-  geom_boxplot(mapping = aes(x = white_quartile, y = infection_ratio, 
-                             color = white_quartile)) + 
-  labs(x = "White Quartile", y = "Infection Rate", 
-       title = "Infection Rate by White Quartile", color = "White\nQuartile") +
-  theme(plot.title = element_text(hjust = 0.5), 
-        legend.title = element_text(size=10))
-ggsave("infection rate distribution by white BP.png", 
-       plot = last_plot(), width = 5.5, height = 4)
-
-ggplot(data = all_df) +
-  geom_boxplot(mapping = aes(x = black_quartile, y = infection_ratio, 
-                             color = black_quartile)) + 
-  labs(x = "Black Quartile", y = "Infection Rate", 
-       title = "Infection Rate by Black Quartile", color = "Black\nQuartile") +
-  theme(plot.title = element_text(hjust = 0.5), 
-        legend.title = element_text(size=10))
-ggsave("infection rate distribution by black BP.png", 
-       plot = last_plot(), width = 5.5, height = 4)
 
 #Trend of Infection Rate 
 temp <- left_join(cases, population, by = "FIPS")
@@ -644,16 +639,16 @@ names(ir_trend)[names(ir_trend) == "temp.FIPS"] <- "FIPS"
 #change FIPS to character for mr_trend 
 ir_trend$FIPS <- as.character(ir_trend$FIPS)
 ir_trend <- ir_trend[, -c(1913)]
-ir_trend_pov <- left_join(pov, ir_trend, by = "FIPS")
+ir_trend_pov <- left_join(maindf, ir_trend, by = "FIPS")
 ir_trend_pov <- na.omit(ir_trend_pov)
 
 #aggregate df to find avg mortality rate each day w/in the quartiles
-ir_trend_agg <- aggregate(ir_trend_pov, by = list(ir_trend_pov$quartile), FUN = mean)
+ir_trend_agg <- aggregate(ir_trend_pov, by = list(ir_trend_pov$pov_quartile), FUN = mean)
 is.na(ir_trend_agg) <- sapply(ir_trend_agg, is.infinite)
 ir_trend_agg[is.na(ir_trend_agg)] <- 0
+ir_trend_agg <- ir_trend_agg[, -c(1:28)]
 #want x axis to be day and y axis to be average and color by quartile
 transpose_ir <- t(ir_trend_agg)
-transpose_ir <- transpose_ir[-c(1:5), ]
 colnames(transpose_ir) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
 bind_ir <- cbind(dates, transpose_ir)
 bind_ir$Date <- as.Date(bind_ir$Date)
@@ -679,26 +674,20 @@ ggplot(data = bind_ir) +
   theme(plot.title = element_text(hjust = 0.5, size = 13))
 ggsave("infection rate trend by POV.png", 
        plot = last_plot(), width = 5.5, height = 4)
+
 #density plots infection rate 
-ggplot(data = all_df) +
-  geom_density(mapping = aes(x = infection_ratio, color = quartile)) +
+ggplot(data = maindf) +
+  geom_density(mapping = aes(x = infection_ratio, color = pov_quartile)) +
   labs(x = "Infection Rate", y = "Density", title = "Infection Rate Density", 
        color = "Poverty\n Quartile") +
   theme(plot.title = element_text(hjust = 0.5))
 
-#more recent infection rate 
-oct_cases <- cases[, c(1,959)]
-inf_rateOct <- left_join(oct_cases, population, by = "FIPS")
-inf_rateOct <- na.omit(inf_rateOct)
-inf_rateOct$infection_ratio <- inf_rateOct$X10.16.22 / inf_rateOct$TOT_POP
-dfOct <- left_join(edu_pov_mr, inf_rateOct, by = "FIPS")
-dfOct <- dfOct[ , -c(13, 14)]
-dfOct <- na.omit(dfOct)
+
 
 #Box plot for October Infection rate 
-ggplot(data = dfOct) +
-  geom_boxplot(mapping = aes(x = quartile, y = infection_ratio, 
-                             color = quartile)) + 
+ggplot(data = maindf) +
+  geom_boxplot(mapping = aes(x = pov_quartile, y = infection_ratio, 
+                             color = pov_quartile)) + 
   coord_cartesian(ylim = c(0, 0.6)) +
   labs(x = "Poverty Quartile", y = "Infection Rate", 
        title = "Infection Rate by Poverty Quartile", color = "Poverty\nQuartile") +
@@ -707,9 +696,9 @@ ggplot(data = dfOct) +
 ggsave("infection rate distribution by POV oct BP.png", 
        plot = last_plot(), width = 5.5, height = 4)
 
-ggplot(data = dfOct) +
-  geom_boxplot(mapping = aes(x = BD_quartile, y = infection_ratio, 
-                             color = BD_quartile)) + 
+ggplot(data = maindf) +
+  geom_boxplot(mapping = aes(x = bachelors_quartile, y = infection_ratio, 
+                             color = bachelors_quartile)) + 
   coord_cartesian(ylim = c(0, 0.6)) +
   labs(x = "Bachelor's Quartile", y = "Infection Rate", 
        title = "Infection Rate by Bachelor's Quartile", color = "Bachelor's\nQuartile") +
@@ -718,10 +707,8 @@ ggplot(data = dfOct) +
 ggsave("infection rate distribution by BD oct BP.png", 
        plot = last_plot(), width = 5.5, height = 4)
 
-dfOct <- left_join(dfOct, raceq, by = "FIPS")
-dfOct <- na.omit(dfOct)
 
-ggplot(data = dfOct) +
+ggplot(data = maindf) +
   geom_boxplot(mapping = aes(x = white_quartile, y = infection_ratio, 
                              color = white_quartile)) + 
   coord_cartesian(ylim = c(0, 0.6)) +
@@ -732,7 +719,7 @@ ggplot(data = dfOct) +
 ggsave("infection rate distribution by white oct BP.png", 
        plot = last_plot(), width = 5.5, height = 4)
 
-ggplot(data = dfOct) +
+ggplot(data = maindf) +
   geom_boxplot(mapping = aes(x = black_quartile, y = infection_ratio, 
                              color = black_quartile)) + 
   coord_cartesian(ylim = c(0, 0.6)) +
@@ -744,55 +731,53 @@ ggsave("infection rate distribution by black oct BP.png",
        plot = last_plot(), width = 5.5, height = 4)
 
 #subset education quartiles 
-bd_mr1 <- all_df[all_df$BD_quartile == "1", ]
-bd_mr2 <- all_df[all_df$BD_quartile == "2", ]
-bd_mr3 <- all_df[all_df$BD_quartile == "3", ]
-bd_mr4 <- all_df[all_df$BD_quartile == "4", ]
+bachelors_mr1 <- maindf[maindf$bachelors_quartile == "1", ]
+bachelors_mr2 <- maindf[maindf$bachelors_quartile == "2", ]
+bachelors_mr3 <- maindf[maindf$bachelors_quartile == "3", ]
+bachelors_mr4 <- maindf[maindf$bachelors_quartile == "4", ]
 
-median(bd_mr1$ratio)
-median(bd_mr2$ratio)
-median(bd_mr3$ratio)
-median(bd_mr4$ratio)
-abs((median(bd_mr4$ratio) - median(all_df$ratio))) / median(all_df$ratio)
-abs((median(bd_mr4$ratio) - median(bd_mr1$ratio))) / median(bd_mr1$ratio)
+#find median of each bachelor's quartile
 
-
-mean(bd_mr1$ratio)
-mean(bd_mr2$ratio)
-mean(bd_mr3$ratio)
-mean(bd_mr4$ratio)
+median(bachelors_mr1$ratio)
+median(bachelors_mr2$ratio)
+median(bachelors_mr3$ratio)
+median(bachelors_mr4$ratio)
+abs((median(bachelors_mr4$ratio) - median(maindf$ratio))) / median(maindf$ratio)
+abs((median(bachelors_mr4$ratio) - median(bachelors_mr1$ratio))) / median(bachelors_mr1$ratio)
 
 
-t.test(bd_mr4$ratio, mu = mean(all_df$ratio))
+mean(bachelors_mr1$ratio)
+mean(bachelors_mr2$ratio)
+mean(bachelors_mr3$ratio)
+mean(bachelors_mr4$ratio)
 
-median(pov_and_mr1$poverty_percent_all_ages)
 
-ggplot(data = all_df) +
-  geom_bar(mapping = aes(x = poverty_percent_all_ages, y = ratio))
+t.test(bachelors_mr4$ratio, mu = mean(maindf$ratio))
 
-mr_trend$FIPS <- as.numeric(mr_trend$FIPS)
-mr_trend_BD <- left_join(all_df, mr_trend, by = "FIPS")
-mr_trend_BD <- na.omit(mr_trend_BD)
+median(pov_1$poverty_percent_all_ages)
+
+mr_trend_bachelors <- left_join(maindf, mr_trend, by = "FIPS")
+mr_trend_bachelors <- na.omit(mr_trend_bachelors)
 
 # trend by education level
 
 #aggregate df to find avg mortality rate each day w/in the quartiles
-mr_trend_BD <- aggregate(mr_trend_BD, by = list(mr_trend_BD$BD_quartile), FUN = mean)
-is.na(mr_trend_BD) <- sapply(mr_trend_BD, is.infinite)
-mr_trend_BD[is.na(mr_trend_BD)] <- 0
+mr_trend_bachelors <- aggregate(mr_trend_bachelors, by = list(mr_trend_bachelors$bachelors_quartile), FUN = mean)
+is.na(mr_trend_bachelors) <- sapply(mr_trend_bachelors, is.infinite)
+mr_trend_bachelors[is.na(mr_trend_bachelors)] <- 0
+mr_trend_bachelors <- mr_trend_bachelors[, -c(1:28)]
 #want x axis to be day and y axis to be average and color by quartile
-transpose_BD <- t(mr_trend_BD)
-transpose_BD <- transpose_BD[-c(1:18), ]
-colnames(transpose_BD) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
+transpose_bachelors <- t(mr_trend_bachelors)
+colnames(transpose_bachelors) <- c("Quartile_1", "Quartile_2", "Quartile_3", "Quartile_4")
 
-bind_BD <- cbind(dates, transpose_BD)
-bind_BD$Date <- as.Date(bind_BD$Date)
-bind_BD$Quartile_1 <- as.numeric(bind_BD$Quartile_1)
-bind_BD$Quartile_2 <- as.numeric(bind_BD$Quartile_2)
-bind_BD$Quartile_3 <- as.numeric(bind_BD$Quartile_3)
-bind_BD$Quartile_4 <- as.numeric(bind_BD$Quartile_4)
+bind_bachelors <- cbind(dates, transpose_bachelors)
+bind_bachelors$Date <- as.Date(bind_bachelors$Date)
+bind_bachelors$Quartile_1 <- as.numeric(bind_bachelors$Quartile_1)
+bind_bachelors$Quartile_2 <- as.numeric(bind_bachelors$Quartile_2)
+bind_bachelors$Quartile_3 <- as.numeric(bind_bachelors$Quartile_3)
+bind_bachelors$Quartile_4 <- as.numeric(bind_bachelors$Quartile_4)
 
-ggplot(data = bind_BD) +
+ggplot(data = bind_bachelors) +
   geom_smooth(mapping = aes(x = Date, y = Quartile_1, color = "1")) +
   geom_smooth(mapping = aes(x = Date, y = Quartile_2, color = "2")) +
   geom_smooth(mapping = aes(x = Date, y = Quartile_3, color = "3")) +
@@ -810,29 +795,208 @@ ggplot(data = bind_BD) +
 ggsave("mortality rate trend by BD.png", 
        plot = last_plot(), width = 5.5, height = 4)
 
-all_df$ir_quartile <- as.factor(ifelse(all_df$infection_ratio <= 0.075010194, '1', 
-                                 ifelse(all_df$infection_ratio <= 0.092227808, '2', 
-                                        ifelse(all_df$infection_ratio <= 0.109401136, '3', 
-                                               ifelse(all_df$infection_ratio <= 0.347467415, '4')))))
-ggplot(data = all_df) +
-  geom_bar(mapping = aes(x = BD_quartile, y = ..count.., fill = ir_quartile)) +
+#remove infection ratio's > 1 
+
+
+maindf$ir_quartile <- as.factor(ifelse(maindf$infection_ratio <= 0.2464198, '1', 
+                                 ifelse(maindf$infection_ratio <= 0.2843289, '2', 
+                                        ifelse(maindf$infection_ratio <= 0.3223086, '3',
+                                               ifelse(maindf$infection_ratio <= .8569386, '4')))))
+ggplot(data = maindf) +
+  geom_bar(mapping = aes(x = bachelors_quartile, y = ..count.., fill = ir_quartile)) +
   labs(x = "Infection Rate Quartile", y = "Count", title = "Bachelor's Degree by Infection Rate", 
        fill = "Infection Rate\nQuartile") +
   theme(plot.title = element_text(hjust = 0.5))
-ggsave("bd quartile by ir Bar.png", 
+ggsave("bachelors quartile by ir Bar.png", 
        plot = last_plot(), width = 5.5, height = 4)
 
 #calculate confidence interval for education 
-se <- sd(all_df$ratio) / sqrt(nrow(bd_mr4))
-sample_mean <- mean(all_df$ratio)
+se <- sd(maindf$ratio) / sqrt(nrow(bachelors_mr4))
+sample_mean <- mean(maindf$ratio)
 lower_bound <- sample_mean - 1.96*se
 upper_bound <- sample_mean + 1.96*se
-mean(bd_mr4$ratio)
+mean(bachelors_mr4$ratio)
 # lower bound is 1.38
 # Upper bound is 1.477
 # mean is 1.03
 # find z score 
 pnorm(0.01030835, mean = sample_mean, sd = se)
-z_BD4 <- (mean(all_df$ratio) - mean(bd_mr4$ratio)) / se
+z_bachelors4 <- (mean(maindf$ratio) - mean(bachelors_mr4$ratio)) / se
 
-(mean(all_df$ratio) - mean(bd_mr4$ratio)) / mean(all_df$ratio)
+edu$FIPS <- as.character(edu$FIPS)
+
+#CREATE MAIN DF
+
+
+#MAPS 
+set.seed(1)    # for reproducible example
+map.county <- map_data('county')
+counties   <- unique(map.county[,5:6])
+pov_map <- data.frame(state_names=counties$region, 
+                      county_names=counties$subregion, 
+                      pov_percentage = runif(nrow(counties), min=0, max=100))
+
+map.county <- data.table(map_data('county'))
+setkey(map.county,region,subregion)
+pov_map <- data.table(pov_map)
+setkey(pov_map,state_names,county_names)
+map.df <- map.county[pov_map]
+
+high_pov <- filter(maindf, as.integer(pov_quartile) >= 3)
+high_pov <- dplyr::select(high_pov, FIPS, Lat, long)
+high_pov <- filter(high_pov, str_starts(high_pov$FIPS, '15') != TRUE)
+high_pov <- filter(high_pov, str_starts(high_pov$FIPS, '02') != TRUE)
+high_pov$Lat <- unlist(high_pov$Lat)
+high_pov$long <- unlist(high_pov$long)
+
+high_ratio <- filter(maindf, as.integer(ratio_quartile) >= 3)
+high_ratio <- dplyr::select(high_ratio, FIPS, Lat, long, ratio_quartile)
+high_ratio <- filter(high_ratio, str_starts(high_ratio$FIPS, '15') != TRUE)
+high_ratio <- filter(high_ratio, str_starts(high_ratio$FIPS, '02') != TRUE)
+high_ratio$Lat <- unlist(high_ratio$Lat)
+high_ratio$long <- unlist(high_ratio$long)
+
+low_pov <- filter(maindf, as.integer(pov_quartile) < 3)
+low_pov <- dplyr::select(low_pov, FIPS, Lat, long)
+low_pov <- filter(low_pov, str_starts(low_pov$FIPS, '15') != TRUE)
+low_pov <- filter(low_pov, str_starts(low_pov$FIPS, '02') != TRUE)
+low_pov$Lat <- unlist(low_pov$Lat)
+low_pov$long <- unlist(low_pov$long)
+
+low_ratio <- filter(maindf, as.integer(ratio_quartile) < 3)
+low_ratio <- dplyr::select(low_ratio, FIPS, Lat, long, ratio_quartile)
+low_ratio <- filter(low_ratio, str_starts(low_ratio$FIPS, '15') != TRUE)
+low_ratio <- filter(low_ratio, str_starts(low_ratio$FIPS, '02') != TRUE)
+low_ratio$Lat <- unlist(low_ratio$Lat)
+low_ratio$long <- unlist(low_ratio$long)
+
+# LOW POVERTY, HIGH MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = low_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "red") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "High mortality rate, Low poverty levels") 
+
+# LOW POVERTY, LOW MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = low_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .7, color = "white") +
+  geom_point(data = low_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "green") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "Low mortality rate, Low poverty levels") 
+
+# HIGH POVERTY, HIGH MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .7, color = "white") +
+  geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "red") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "High mortality rate, high poverty levels") 
+
+# HIGH POVERTY, LOW MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_pov, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = low_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "green") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "Low mortality rate, high poverty levels") 
+
+# RACE QUARTILES 
+# WHITE
+high_white <- filter(maindf, as.integer(white_quartile) >= 3)
+high_white <- dplyr::select(high_white, FIPS, Lat, long)
+high_white <- filter(high_white, str_starts(high_white$FIPS, '15') != TRUE)
+high_white <- filter(high_white, str_starts(high_white$FIPS, '02') != TRUE)
+high_white$Lat <- unlist(high_white$Lat)
+high_white$long <- unlist(high_white$long)
+
+# BlACK
+high_black <- filter(maindf, as.integer(black_quartile) >= 3)
+high_black <- dplyr::select(high_black, FIPS, Lat, long)
+high_black <- filter(high_black, str_starts(high_black$FIPS, '15') != TRUE)
+high_black <- filter(high_black, str_starts(high_black$FIPS, '02') != TRUE)
+high_black$Lat <- unlist(high_black$Lat)
+high_black$long <- unlist(high_black$long)
+
+# HIGH WHITE, LOW MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_white, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = low_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "green") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "Low mortality rate, high white percentage") 
+
+# HIGH WHITE, HIGH MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_white, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "red") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "High mortality rate, high white percentage") 
+
+# HIGH BLACK, LOW MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_black, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "white") +
+  geom_point(data = low_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "green") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "Low mortality rate, high black percentage") 
+
+# HIGH BLACK, HIGH MORTALITY
+ggplot() + 
+  geom_polygon(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage))+
+  coord_map(data = map.df, aes(x=long, y=lat, group=group, fill=pov_percentage)) +
+  geom_point(data = high_black, mapping = aes(x = long, y = Lat), 
+             alpha = .7, color = "white") +
+  geom_point(data = high_ratio, mapping = aes(x = long, y = Lat), 
+             alpha = .5, color = "red") +
+  coord_cartesian(xlim = c(-130, -60), ylim = c(25, 50)) +
+  labs (title = "High mortality rate, high black percentage") 
+
+
+# CORRELATION COEFFICIENTS?
+# race all ages
+white_cor <- cor(maindf$White_perc, maindf$ratio, method = "pearson") # -0.01587196
+black_cor <- cor(maindf$Black_perc, maindf$ratio, method = "pearson") # 0.1183769
+asian_cor <- cor(maindf$Asian_perc, maindf$ratio, method = "pearson") # -0.2737742
+hispanic_cor <- cor(maindf$Hispanic_perc, maindf$ratio, method = "pearson") # 0.03555343
+# note: asian and white are neg correlated, hispanic and black pos correlated w mortality rate
+# education
+bachelors_cor <- cor(maindf$bachelors, maindf$ratio, method = "pearson") # -0.4280797
+hs_cor <- cor(as.integer(maindf$HS), maindf$ratio, method = "pearson") # 0.3498861
+nohs_cor <- cor(as.integer(maindf$no_HS), maindf$ratio, method = "pearson") # 0.3134558
+# note: bachelors only one negatively correlated and has strongest correlation of anything
+# poverty
+pov_cor <- cor(maindf$poverty_percent_all_ages, maindf$ratio, method = "pearson") # 0.3453266
+unemp_cor <- cor(maindf$unemp_percent, maindf$ratio, method = "pearson") # 0.08287031
+hhi_cor <- cor(maindf$median_household_income, maindf$ratio, method = "pearson") # -0.4422267
+# unemp probably irrelevant but can be used as example
+
+correlations <- data.frame(white_cor, black_cor, asian_cor, hispanic_cor, bachelors_cor,
+                           hs_cor, nohs_cor, pov_cor, unemp_cor, hhi_cor)
+X <- names(correlations)
+Y <- names(correlations)
+correlations <- t(correlations)
+correlations <- data.frame(correlations)
