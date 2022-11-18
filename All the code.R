@@ -330,17 +330,6 @@ maindf$ir_quartile <- as.factor(ifelse(maindf$infection_ratio <= 0.2464198, '1',
 
 # POVERTY ANALYSIS : MORTALITY RATE
 
-#overall poverty distribution w/in US
-ggplot(data = maindf) +
-  geom_density(mapping = aes(x = poverty_percent_all_ages))
-
-#graph density of mortality rate by quartile
-ggplot(data = maindf, aes(ratio, color = pov_quartile)) + 
-  geom_density() +
-  labs(x = "Mortality Rate", y = "Density", 
-       title = "Mortality Rate Density Curve", 
-       color = "Poverty Percent Quartile")
-
 
 #subset poverty data to find mean of each quartile 
 pov_1 <- maindf[maindf$pov_quartile == "1", ]
@@ -367,18 +356,6 @@ median(maindf$ratio)
 #change median household income to numeric vector 
 maindf$median_household_income <- as.numeric(gsub(",", "", 
                                                   maindf$median_household_income))
-
-#distribution of med hh income in US
-ggplot(data = maindf) + 
-  geom_density(mapping = aes(x = median_household_income))
-
-
-#plot mortality rate by med hh income quartiles
-ggplot(data = maindf) + 
-  geom_density(mapping = aes(x = ratio, color = medhh_quartile)) +
-  labs(x = "Mortality Rate", y = "Density", 
-       title = "Mortality Rate Density", 
-       color = "Med. HH Income Quartile")
 
 #find avg mortality rate among median HH income quartiles 
 mean_medhh1 <- mean(maindf$ratio[maindf$medhh_quartile == '1'])
@@ -482,12 +459,6 @@ ggplot(data = bind_ir) +
 ggsave("infection rate trend by POV.png", 
        plot = last_plot(), width = 5.5, height = 4)
 
-#density plots infection rate 
-ggplot(data = maindf) +
-  geom_density(mapping = aes(x = infection_ratio, color = pov_quartile)) +
-  labs(x = "Infection Rate", y = "Density", title = "Infection Rate Density", 
-       color = "Poverty\n Quartile") +
-  theme(plot.title = element_text(hjust = 0.5))
 
 
 #Box plot for Infection rate 
@@ -534,11 +505,6 @@ ggsave("mr quartile by BD Bar.png",
        plot = last_plot(), width = 5.5, height = 4)
 
 # Distribution of mortality rate by bachelor's quartiles
-ggplot(data = maindf) +
-  geom_density(mapping = aes(x = ratio, color = bachelors_quartile)) +
-  labs(x = "Mortality Rate", y = "Density", title = "Mortality Rate Density", 
-       color = "Bachelor Degree\n Quartile") +
-  theme(plot.title = element_text(hjust = 0.5))
 mean(maindf$ratio)
 
 # POSSIBLY REMOVE (NOT USEFUL?) !!!
