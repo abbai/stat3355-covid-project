@@ -780,6 +780,26 @@ ggplot(data = maindf) +
 ggsave("infection rate distribution by black oct BP.png", 
        plot = last_plot(), width = 5.5, height = 4)
 
+# Black Quartile Mortality Rate Means 
+black_one_avg <- mean(maindf$ratio[maindf$black_quartile == "1"])
+# mean = 0.01494859
+black_two_avg <- mean(maindf$ratio[maindf$black_quartile == "2"])
+# mean = 0.01363461
+black_three_avg <- mean(maindf$ratio[maindf$black_quartile == "3"])
+# mean = 0.01370019
+black_four_avg <- mean(maindf$ratio[maindf$black_quartile == "4"])
+# mean = 0.01504921
+
+# White quartile Mortality Rate Means
+white_one_avg <- mean(maindf$ratio[maindf$white_quartile == "1"])
+# mean = 0.01453828
+white_two_avg <- mean(maindf$ratio[maindf$white_quartile == "2"])
+# mean = 0.01339883
+white_three_avg <- mean(maindf$ratio[maindf$white_quartile == "3"])
+# mean = 0.01433122
+white_four_avg <- mean(maindf$ratio[maindf$white_quartile == "4"])
+# mean = 0.01505654
+
 #MAPS 
 set.seed(1)    # for reproducible example
 map.county <- map_data('county')
